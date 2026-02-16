@@ -62,6 +62,23 @@ const addressSchema = new mongoose.Schema(
     { _id: false }
 );
 
+/* ---------------- Business Info Schema ---------------- */
+const businessInfoSchema = new mongoose.Schema(
+    {
+        gst: { type: String, trim: true, uppercase: true },
+        pan: { type: String, trim: true, uppercase: true },
+        phone: { type: String, trim: true },
+        email: { type: String, trim: true, lowercase: true },
+        addressLine1: { type: String, trim: true },
+        city: { type: String, trim: true },
+        state: { type: String, trim: true },
+        pincode: { type: String, trim: true },
+        country: { type: String, default: "India" },
+        sameAsShipping: { type: Boolean, default: false },
+    },
+    { _id: false }
+);
+
 const customerSchema = new mongoose.Schema(
     {
         companyName: {
@@ -75,9 +92,11 @@ const customerSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
-
+        status: {
+            type: String,
+        },
         address: addressSchema,
-
+        businessInfo: businessInfoSchema,
         contacts: {
             type: [contactSchema],
             default: [],
