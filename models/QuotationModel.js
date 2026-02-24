@@ -30,6 +30,13 @@ const quotationSchema = new mongoose.Schema(
             default: 'enquired',
         },
 
+        // Work order reference (if converted)
+        workOrderId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'WorkOrder',
+            default: null,
+        },
+
         // Cable configuration (stored as-is from frontend state)
         cableLength:    { type: Number, default: 100 },
         cores:          { type: mongoose.Schema.Types.Mixed, default: [] },

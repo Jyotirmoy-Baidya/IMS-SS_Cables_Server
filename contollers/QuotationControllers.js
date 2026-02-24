@@ -18,6 +18,7 @@ export const getAllQuotations = async (req, res) => {
 
         let quotations = await Quotation.find(filter)
             .populate('customerId', 'companyName address contacts')
+            .populate('workOrderId', 'workOrderNumber status')
             .sort({ createdAt: -1 });
 
         if (search) {

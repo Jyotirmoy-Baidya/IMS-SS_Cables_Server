@@ -8,6 +8,9 @@ import rawMaterialLotRoutes from "./routes/RawMaterialLotRoutes.js"
 import purchaseOrderRoutes from "./routes/PurchaseOrderRoutes.js"
 import processRoutes from "./routes/ProcessRoutes.js"
 import quotationRoutes from "./routes/QuotationRoutes.js"
+import userRoutes from "./routes/UserRoutes.js"
+import workOrderRoutes from "./routes/WorkOrderRoutes.js"
+import locationRoutes from "./routes/LocationRoutes.js"
 const app = express()
 
 app.use(
@@ -32,5 +35,8 @@ app.use("/api/material-lot", rawMaterialLotRoutes);
 app.use("/api/purchase-order", purchaseOrderRoutes);
 app.use("/api/process", processRoutes);
 app.use("/api/quotation", quotationRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/work-order", workOrderRoutes);
+app.use("/api/location", locationRoutes);
 
 export default app
