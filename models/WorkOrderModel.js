@@ -74,6 +74,39 @@ const workOrderSchema = new mongoose.Schema(
             default: [],
         },
 
+        allocatedMaterials: [{
+            materialId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'RawMaterial',
+                required: true
+            },
+            materialName: String, // Denormalized for display
+            materialLotId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'RawMaterialLot',
+                required: true
+            },
+            lotNumber: String, // Denormalized for display
+            allocatedWeight: {
+                type: Number,
+                required: true,
+                min: 0
+            },
+            allocatedLength: {
+                type: Number,
+                default: 0,
+                min: 0
+            },
+            allocatedAt: {
+                type: Date,
+                default: Date.now
+            },
+            isConsumed: {
+                type: Boolean,
+                default: false
+            }
+        }],
+
         notes: { type: String, default: '' },
     },
     { timestamps: true }

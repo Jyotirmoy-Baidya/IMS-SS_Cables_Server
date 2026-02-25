@@ -47,6 +47,20 @@ const RawMaterialLotSchema = new mongoose.Schema({
       min: 0
     }
   },
+  allocatedQuantity: {
+    weight: {
+      type: Number,
+      default: 0,
+      min: 0,
+      comment: 'Weight allocated to work orders but not yet consumed'
+    },
+    length: {
+      type: Number,
+      default: 0,
+      min: 0,
+      comment: 'Length allocated to work orders but not yet consumed'
+    }
+  },
   // Pricing
   pricing: {
     pricePerKg: {

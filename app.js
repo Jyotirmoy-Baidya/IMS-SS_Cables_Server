@@ -11,6 +11,7 @@ import quotationRoutes from "./routes/QuotationRoutes.js"
 import userRoutes from "./routes/UserRoutes.js"
 import workOrderRoutes from "./routes/WorkOrderRoutes.js"
 import locationRoutes from "./routes/LocationRoutes.js"
+import materialAllocationRoutes from "./routes/MaterialAllocationRoutes.js"
 const app = express()
 
 app.use(
@@ -38,5 +39,6 @@ app.use("/api/quotation", quotationRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/work-order", workOrderRoutes);
 app.use("/api/location", locationRoutes);
+app.use("/api/material-allocation", materialAllocationRoutes);
 
 export default app

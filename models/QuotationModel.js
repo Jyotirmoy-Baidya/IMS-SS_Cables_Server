@@ -51,6 +51,19 @@ const quotationSchema = new mongoose.Schema(
         profitAmount:        { type: Number, default: 0 },
         finalPrice:          { type: Number, default: 0 },
 
+        // Required materials (calculated and stored when quotation is saved)
+        requiredMaterialsQuantity: [{
+            materialId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'RawMaterial',
+                required: true
+            },
+            materialName: String,
+            category: String,
+            requiredWeight: { type: Number, required: true, min: 0 },
+            purpose: String // e.g., 'conductor', 'insulation-fresh', 'sheath-reprocess'
+        }],
+
         // Delivery / notes (updated from list page)
         deliveryType:          { type: String, enum: ['drum', 'bobbin', 'coil', 'packed', 'other', ''], default: '' },
         deliveryQuantity:      { type: String, default: '' },

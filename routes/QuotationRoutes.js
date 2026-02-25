@@ -7,6 +7,7 @@ import {
     patchQuotation,
     deleteQuotation,
 } from '../contollers/QuotationControllers.js';
+import { calculateMaterialRequirements } from '../contollers/QuotationMaterialControllers.js';
 
 const router = express.Router();
 
@@ -16,5 +17,6 @@ router.get('/get-one-quotation/:id', getQuotationById);
 router.put('/update-quotation/:id', updateQuotation);
 router.patch('/patch-quotation/:id', patchQuotation);
 router.delete('/delete-quotation/:id', deleteQuotation);
+router.post('/calculate-material-requirements', calculateMaterialRequirements);
 
 export default router;
