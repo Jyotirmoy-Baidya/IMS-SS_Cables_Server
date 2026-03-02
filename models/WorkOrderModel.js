@@ -97,6 +97,14 @@ const workOrderSchema = new mongoose.Schema(
                 default: 0,
                 min: 0
             },
+            pricePerKg: {
+                type: Number,
+                default: 0
+            },
+            totalCost: {
+                type: Number,
+                default: 0
+            },
             allocatedAt: {
                 type: Date,
                 default: Date.now
@@ -104,7 +112,78 @@ const workOrderSchema = new mongoose.Schema(
             isConsumed: {
                 type: Boolean,
                 default: false
+            },
+            isExtraRequest: {
+                type: Boolean,
+                default: false,
+                comment: 'True if this was requested as extra material during production'
             }
+        }],
+
+        // Costing breakdown
+        materialCosts: {
+            totalCost: { type: Number, default: 0 },
+            breakdown: [{
+                materialId: mongoose.Schema.Types.ObjectId,
+                materialName: String,
+                quantity: Number,
+                unit: String,
+                pricePerUnit: Number,
+                totalCost: Number
+            }]
+        },
+
+        processCosts: {
+            totalCost: { type: Number, default: 0 },
+            breakdown: [{
+                processId: mongoose.Schema.Types.ObjectId,
+                processName: String,
+                cost: Number
+            }]
+        },
+
+        finalCost: {
+            materialCost: { type: Number, default: 0 },
+            processCost: { type: Number, default: 0 },
+            profitMargin: { type: Number, default: 0 },
+            profitAmount: { type: Number, default: 0 },
+            grandTotal: { type: Number, default: 0 }
+        },
+
+        // Extra material requests during production
+        extraMaterialRequests: [{
+            materialId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'RawMaterial',
+                required: true
+            },
+            materialName: String,
+            requestedQuantity: {
+                weight: { type: Number, default: 0 },
+                length: { type: Number, default: 0 },
+                unit: { type: String, default: 'kg' }
+            },
+            reason: String,
+            requestedBy: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'User'
+            },
+            requestedAt: {
+                type: Date,
+                default: Date.now
+            },
+            status: {
+                type: String,
+                enum: ['pending', 'approved', 'rejected'],
+                default: 'pending'
+            },
+            approvedBy: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'User'
+            },
+            approvedAt: Date,
+            allocatedMaterialId: mongoose.Schema.Types.ObjectId, // Reference to added allocated material
+            notes: String
         }],
 
         notes: { type: String, default: '' },

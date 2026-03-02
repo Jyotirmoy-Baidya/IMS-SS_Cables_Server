@@ -1,6 +1,8 @@
+import mongoose from 'mongoose';
 import WorkOrder from '../models/WorkOrderModel.js';
 import Quotation from '../models/QuotationModel.js';
 import RawMaterialLot from '../models/RawMaterialLotModel.js';
+import RawMaterial from '../models/RawMaterialModel.js';
 
 // Convert quotation to work order
 export const createWorkOrder = async (req, res) => {
@@ -15,7 +17,26 @@ export const createWorkOrder = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Quotation not found' });
         }
 
-        // Create work order
+        // Calculate material costs from quotation
+        const materialCostsBreakdown = (quotation.requiredMaterialsQuantity || []).map(req => ({
+            materialId: req.materialId,
+            materialName: req.materialName,
+            quantity: req.requiredWeight,
+            unit: 'kg',
+            pricePerUnit: 0, // Will be calculated from allocated lots
+            totalCost: 0
+        }));
+
+        // Calculate process costs from quotation processes
+        const processCostsBreakdown = (quotation.quoteProcesses || []).map(proc => ({
+            processId: proc.processId,
+            processName: proc.processName,
+            cost: proc.cost || 0
+        }));
+
+        const totalProcessCost = processCostsBreakdown.reduce((sum, p) => sum + (p.cost || 0), 0);
+
+        // Create work order with costing
         workOrder = await WorkOrder.create({
             quoteId: quotation._id,
             quoteNumber: quotation.quoteNumber,
@@ -23,7 +44,22 @@ export const createWorkOrder = async (req, res) => {
             cableLength: quotation.cableLength,
             processAssignments,
             notes: notes || '',
-            allocatedMaterials: [] // Initialize empty
+            allocatedMaterials: [],
+            materialCosts: {
+                totalCost: 0, // Will be updated after allocation
+                breakdown: materialCostsBreakdown
+            },
+            processCosts: {
+                totalCost: totalProcessCost,
+                breakdown: processCostsBreakdown
+            },
+            finalCost: {
+                materialCost: 0,
+                processCost: totalProcessCost,
+                profitMargin: quotation.profitMarginPercent || 0,
+                profitAmount: 0,
+                grandTotal: 0
+            }
         });
 
         // Use stored material requirements from quotation
@@ -55,6 +91,10 @@ export const createWorkOrder = async (req, res) => {
 
                     const toAllocate = Math.min(available, remainingToAllocate);
 
+                    // Get price from lot
+                    const pricePerKg = lot.pricePerKg || lot.avgPricePerKg || 0;
+                    const costForThis = toAllocate * pricePerKg;
+
                     // Update lot allocation
                     lot.allocatedQuantity = lot.allocatedQuantity || { weight: 0, length: 0 };
                     lot.allocatedQuantity.weight = (lot.allocatedQuantity.weight || 0) + toAllocate;
@@ -68,8 +108,11 @@ export const createWorkOrder = async (req, res) => {
                         lotNumber: lot.lotNumber,
                         allocatedWeight: toAllocate,
                         allocatedLength: 0,
+                        pricePerKg: pricePerKg,
+                        totalCost: costForThis,
                         allocatedAt: new Date(),
-                        isConsumed: false
+                        isConsumed: false,
+                        isExtraRequest: false
                     });
 
                     remainingToAllocate -= toAllocate;
@@ -83,6 +126,37 @@ export const createWorkOrder = async (req, res) => {
 
             // Update work order with allocated materials
             workOrder.allocatedMaterials = allocatedMaterials;
+
+            // Calculate total material cost
+            const totalMaterialCost = allocatedMaterials.reduce((sum, mat) => sum + (mat.totalCost || 0), 0);
+
+            // Update material costs breakdown with actual prices
+            workOrder.materialCosts.totalCost = totalMaterialCost;
+            workOrder.materialCosts.breakdown = workOrder.materialCosts.breakdown.map(item => {
+                const allocatedForThis = allocatedMaterials.filter(a => a.materialId.toString() === item.materialId.toString());
+                const avgPrice = allocatedForThis.length > 0
+                    ? allocatedForThis.reduce((sum, a) => sum + (a.pricePerKg || 0), 0) / allocatedForThis.length
+                    : 0;
+                const totalCost = allocatedForThis.reduce((sum, a) => sum + (a.totalCost || 0), 0);
+                return {
+                    ...item,
+                    pricePerUnit: avgPrice,
+                    totalCost: totalCost
+                };
+            });
+
+            // Update final cost
+            const baseTotal = totalMaterialCost + workOrder.processCosts.totalCost;
+            const profitAmount = baseTotal * ((workOrder.finalCost.profitMargin || 0) / 100);
+
+            workOrder.finalCost = {
+                materialCost: totalMaterialCost,
+                processCost: workOrder.processCosts.totalCost,
+                profitMargin: workOrder.finalCost.profitMargin,
+                profitAmount: profitAmount,
+                grandTotal: baseTotal + profitAmount
+            };
+
             await workOrder.save();
         }
 
@@ -225,6 +299,7 @@ export const deleteWorkOrder = async (req, res) => {
         if (workOrder.allocatedMaterials && workOrder.allocatedMaterials.length > 0) {
             for (const allocated of workOrder.allocatedMaterials) {
                 if (!allocated.isConsumed) {
+                    // Deallocate from lot
                     const lot = await RawMaterialLot.findById(allocated.materialLotId);
                     if (lot) {
                         lot.allocatedQuantity = lot.allocatedQuantity || { weight: 0, length: 0 };
@@ -248,5 +323,174 @@ export const deleteWorkOrder = async (req, res) => {
         res.json({ success: true, message: 'Work order deleted and materials deallocated successfully' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// Request extra material during production
+export const requestExtraMaterial = async (req, res) => {
+    try {
+        const { workOrderId } = req.params;
+        const { materialId, materialName, requestedQuantity, reason, requestedBy } = req.body;
+
+        const workOrder = await WorkOrder.findById(workOrderId);
+        if (!workOrder) {
+            return res.status(404).json({ success: false, message: 'Work order not found' });
+        }
+
+        // Add extra material request
+        workOrder.extraMaterialRequests.push({
+            materialId,
+            materialName,
+            requestedQuantity,
+            reason,
+            requestedBy,
+            requestedAt: new Date(),
+            status: 'pending'
+        });
+
+        await workOrder.save();
+
+        res.json({
+            success: true,
+            message: 'Extra material request submitted successfully',
+            data: workOrder
+        });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+};
+
+// Approve extra material request
+export const approveExtraMaterialRequest = async (req, res) => {
+    try {
+        const { workOrderId, requestId } = req.params;
+        const { approvedBy } = req.body;
+
+        const workOrder = await WorkOrder.findById(workOrderId);
+        if (!workOrder) {
+            return res.status(404).json({ success: false, message: 'Work order not found' });
+        }
+
+        const request = workOrder.extraMaterialRequests.id(requestId);
+        if (!request) {
+            return res.status(404).json({ success: false, message: 'Request not found' });
+        }
+
+        if (request.status !== 'pending') {
+            return res.status(400).json({ success: false, message: 'Request already processed' });
+        }
+
+        // Find available lots for allocation (LIFO)
+        const lots = await RawMaterialLot.find({
+            materialId: request.materialId,
+            isActive: true,
+            isFullyConsumed: false
+        }).sort({ purchaseDate: -1 });
+
+        let remainingToAllocate = request.requestedQuantity.weight || 0;
+        const allocatedMaterials = [];
+
+        for (const lot of lots) {
+            if (remainingToAllocate <= 0) break;
+
+            const available = (lot.remainingQuantity?.weight || 0) - (lot.allocatedQuantity?.weight || 0);
+            if (available <= 0) continue;
+
+            const toAllocate = Math.min(available, remainingToAllocate);
+            const pricePerKg = lot.pricePerKg || lot.avgPricePerKg || 0;
+            const costForThis = toAllocate * pricePerKg;
+
+            // Update lot allocation
+            lot.allocatedQuantity = lot.allocatedQuantity || { weight: 0, length: 0 };
+            lot.allocatedQuantity.weight = (lot.allocatedQuantity.weight || 0) + toAllocate;
+            await lot.save();
+
+            // Add to work order's allocated materials
+            const allocatedMat = {
+                materialId: request.materialId,
+                materialName: request.materialName,
+                materialLotId: lot._id,
+                lotNumber: lot.lotNumber,
+                allocatedWeight: toAllocate,
+                allocatedLength: 0,
+                pricePerKg: pricePerKg,
+                totalCost: costForThis,
+                allocatedAt: new Date(),
+                isConsumed: false,
+                isExtraRequest: true
+            };
+
+            workOrder.allocatedMaterials.push(allocatedMat);
+            allocatedMaterials.push(allocatedMat);
+
+            remainingToAllocate -= toAllocate;
+        }
+
+        if (remainingToAllocate > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Insufficient material: ${remainingToAllocate}kg shortage`
+            });
+        }
+
+        // Update request status
+        request.status = 'approved';
+        request.approvedBy = approvedBy;
+        request.approvedAt = new Date();
+
+        // Update costs
+        const totalExtraCost = allocatedMaterials.reduce((sum, mat) => sum + (mat.totalCost || 0), 0);
+        workOrder.materialCosts.totalCost += totalExtraCost;
+        workOrder.finalCost.materialCost += totalExtraCost;
+        const newBaseTotal = workOrder.finalCost.materialCost + workOrder.finalCost.processCost;
+        workOrder.finalCost.profitAmount = newBaseTotal * (workOrder.finalCost.profitMargin / 100);
+        workOrder.finalCost.grandTotal = newBaseTotal + workOrder.finalCost.profitAmount;
+
+        await workOrder.save();
+
+        res.json({
+            success: true,
+            message: 'Extra material request approved and allocated',
+            data: workOrder
+        });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+};
+
+// Reject extra material request
+export const rejectExtraMaterialRequest = async (req, res) => {
+    try {
+        const { workOrderId, requestId } = req.params;
+        const { approvedBy, notes } = req.body;
+
+        const workOrder = await WorkOrder.findById(workOrderId);
+        if (!workOrder) {
+            return res.status(404).json({ success: false, message: 'Work order not found' });
+        }
+
+        const request = workOrder.extraMaterialRequests.id(requestId);
+        if (!request) {
+            return res.status(404).json({ success: false, message: 'Request not found' });
+        }
+
+        if (request.status !== 'pending') {
+            return res.status(400).json({ success: false, message: 'Request already processed' });
+        }
+
+        request.status = 'rejected';
+        request.approvedBy = approvedBy;
+        request.approvedAt = new Date();
+        request.notes = notes || 'Rejected';
+
+        await workOrder.save();
+
+        res.json({
+            success: true,
+            message: 'Extra material request rejected',
+            data: workOrder
+        });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
     }
 };

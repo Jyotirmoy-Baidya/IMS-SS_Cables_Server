@@ -1,5 +1,6 @@
 import RawMaterial from '../models/RawMaterialModel.js';
 import RawMaterialType from '../models/RawMaterialTypeModel.js';
+import WorkOrder from '../models/WorkOrderModel.js';
 
 // Add new raw material
 const addRawMaterial = async (req, res) => {
@@ -48,11 +49,47 @@ const getAllRawMaterials = async (req, res) => {
       .populate('preferredSuppliers')
       .sort({ createdAt: -1 });
 
+    // Calculate allocated stock from active work orders
+    const activeWorkOrders = await WorkOrder.find({
+      status: { $in: ['pending', 'in-progress'] } // Not cancelled or completed
+    }).select('allocatedMaterials');
+
+    // Aggregate allocations by material
+    const allocatedByMaterial = {};
+    activeWorkOrders.forEach(wo => {
+      wo.allocatedMaterials.forEach(allocated => {
+        if (!allocated.isConsumed) {
+          const materialId = allocated.materialId.toString();
+          if (!allocatedByMaterial[materialId]) {
+            allocatedByMaterial[materialId] = 0;
+          }
+          allocatedByMaterial[materialId] += allocated.allocatedWeight || 0;
+        }
+      });
+    });
+
+    // Add calculated allocated and available to each material
+    const materialsWithAllocation = materials.map(material => {
+      const materialObj = material.toObject();
+      const totalStock = materialObj.inventory?.totalWeight || 0;
+      const allocatedStock = allocatedByMaterial[material._id.toString()] || 0;
+      const availableStock = totalStock - allocatedStock;
+
+      return {
+        ...materialObj,
+        inventory: {
+          ...materialObj.inventory,
+          allocatedWeight: allocatedStock,
+          availableWeight: availableStock
+        }
+      };
+    });
+
     res.status(200).json({
       success: true,
       message: 'Raw materials retrieved successfully',
-      data: materials,
-      count: materials.length
+      data: materialsWithAllocation,
+      count: materialsWithAllocation.length
     });
   } catch (error) {
     res.status(500).json({

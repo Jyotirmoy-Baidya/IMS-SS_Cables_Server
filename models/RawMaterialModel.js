@@ -49,7 +49,13 @@ const RawMaterialSchema = new mongoose.Schema({
       type: Number,
       default: 0,
       min: 0,
-      comment: 'Total weight in kg'
+      comment: 'Total weight in kg (remaining + allocated)'
+    },
+    allocatedWeight: {
+      type: Number,
+      default: 0,
+      min: 0,
+      comment: 'Weight allocated to work orders (kg)'
     },
     totalLength: {
       type: Number,
