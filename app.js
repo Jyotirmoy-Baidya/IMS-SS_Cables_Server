@@ -14,6 +14,7 @@ import locationRoutes from "./routes/LocationRoutes.js"
 import materialAllocationRoutes from "./routes/MaterialAllocationRoutes.js"
 import processTrackingRoutes from "./routes/ProcessTrackingRoutes.js"
 import wipInventoryRoutes from "./routes/WIPInventoryRoutes.js"
+import finishedGoodsRoutes from "./routes/FinishedGoodsRoutes.js"
 import employeeRoutes from "./routes/EmployeeRoutes.js"
 const app = express()
 
@@ -45,6 +46,7 @@ app.use("/api/location", locationRoutes);
 app.use("/api/material-allocation", materialAllocationRoutes);
 app.use("/api/process-tracking", processTrackingRoutes);
 app.use("/api/wip-inventory", wipInventoryRoutes);
+app.use("/api/finished-goods", finishedGoodsRoutes);
 app.use("/api/employee", employeeRoutes);
 
 export default app

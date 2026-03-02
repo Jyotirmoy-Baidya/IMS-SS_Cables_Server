@@ -3,6 +3,7 @@ import ProcessTracking from '../models/ProcessTrackingModel.js';
 import WorkOrder from '../models/WorkOrderModel.js';
 import RawMaterialLot from '../models/RawMaterialLotModel.js';
 import WIPInventory from '../models/WIPInventoryModel.js';
+import FinishedGoods from '../models/FinishedGoodsModel.js';
 
 // Create process tracking for a work order process assignment
 export const createProcessTracking = async (req, res) => {
@@ -273,6 +274,15 @@ export const addOutput = async (req, res) => {
 
         // If output is WIP, create WIP inventory item
         if (outputType === 'wip-inventory') {
+            console.log('Creating WIP inventory item...');
+            console.log('Tracking data:', {
+                workOrderId: tracking.workOrderId,
+                workOrderNumber: tracking.workOrderNumber,
+                processId: tracking.processId,
+                processName: tracking.processName
+            });
+            console.log('Quantity:', quantity);
+
             const wipItem = await WIPInventory.create({
                 itemName,
                 workOrderId: tracking.workOrderId,
@@ -285,7 +295,45 @@ export const addOutput = async (req, res) => {
                 notes: notes || ''
             });
 
+            console.log('WIP item created successfully:', wipItem._id);
             outputItem.wipInventoryId = wipItem._id;
+        }
+
+        // If output is finished product, create finished goods item
+        if (outputType === 'finished-product') {
+            console.log('Creating finished goods item...');
+
+            // Get work order to extract customer info
+            const workOrder = await WorkOrder.findById(tracking.workOrderId)
+                .populate('customerId', 'name');
+
+            console.log('Tracking data:', {
+                workOrderId: tracking.workOrderId,
+                workOrderNumber: tracking.workOrderNumber,
+                processId: tracking.processId,
+                processName: tracking.processName,
+                customerId: workOrder?.customerId?._id,
+                customerName: workOrder?.customerId?.name
+            });
+            console.log('Quantity:', quantity);
+
+            const finishedGoods = await FinishedGoods.create({
+                itemName,
+                workOrderId: tracking.workOrderId,
+                workOrderNumber: tracking.workOrderNumber,
+                processId: tracking.processId,
+                processName: tracking.processName,
+                quantity,
+                specifications: specifications || '',
+                storageLocation: storageLocation || '',
+                notes: notes || '',
+                customerId: workOrder?.customerId?._id,
+                customerName: workOrder?.customerId?.name,
+                deliveryStatus: 'ready'
+            });
+
+            console.log('Finished goods item created successfully:', finishedGoods._id);
+            outputItem.finishedGoodsId = finishedGoods._id;
         }
 
         tracking.outputs.push(outputItem);
@@ -364,6 +412,27 @@ export const updateProgress = async (req, res) => {
         Object.assign(tracking, updates);
         await tracking.save();
 
+        // Sync back to work order's process assignment
+        const workOrder = await WorkOrder.findById(tracking.workOrderId);
+        if (workOrder) {
+            const processAssignment = workOrder.processAssignments.id(tracking.processAssignmentId);
+            if (processAssignment) {
+                if (status !== undefined) {
+                    processAssignment.status = status;
+                }
+                if (progressPercentage !== undefined) {
+                    processAssignment.progressPercentage = updates.progressPercentage;
+                }
+                await workOrder.save();
+                console.log('Synced progress to work order process assignment:', {
+                    workOrderId: workOrder._id,
+                    processAssignmentId: processAssignment._id,
+                    status: processAssignment.status,
+                    progressPercentage: processAssignment.progressPercentage
+                });
+            }
+        }
+
         res.json({
             success: true,
             message: 'Progress updated successfully',
@@ -383,6 +452,187 @@ export const deleteProcessTracking = async (req, res) => {
         }
 
         res.json({ success: true, message: 'Process tracking deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// Submit/upload report after process completion
+export const submitReport = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reportUrl, reportNotes, userId } = req.body;
+
+        const tracking = await ProcessTracking.findById(id);
+        if (!tracking) {
+            return res.status(404).json({ success: false, message: 'Process tracking not found' });
+        }
+
+        if (tracking.status !== 'completed') {
+            return res.status(400).json({ success: false, message: 'Cannot submit report for incomplete process' });
+        }
+
+        tracking.reportUploaded = true;
+        tracking.reportUrl = reportUrl || '';
+        tracking.reportUploadedAt = new Date();
+        tracking.reportUploadedBy = userId;
+
+        // Add log entry
+        tracking.logs.push({
+            action: 'note-added',
+            userId,
+            description: 'Process report submitted',
+            details: { reportUrl, reportNotes }
+        });
+
+        await tracking.save();
+
+        // Update work order process assignment
+        const workOrder = await WorkOrder.findById(tracking.workOrderId);
+        if (workOrder) {
+            const processAssignment = workOrder.processAssignments.id(tracking.processAssignmentId);
+            if (processAssignment) {
+                processAssignment.reportUploaded = true;
+                await workOrder.save();
+            }
+        }
+
+        res.json({
+            success: true,
+            message: 'Report submitted successfully',
+            data: tracking
+        });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+};
+
+// Approve/receive report (admin action)
+export const approveReport = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { userId } = req.body;
+
+        const tracking = await ProcessTracking.findById(id);
+        if (!tracking) {
+            return res.status(404).json({ success: false, message: 'Process tracking not found' });
+        }
+
+        if (!tracking.reportUploaded) {
+            return res.status(400).json({ success: false, message: 'No report has been uploaded yet' });
+        }
+
+        tracking.reportReceived = true;
+        tracking.reportReceivedAt = new Date();
+        tracking.reportReceivedBy = userId;
+
+        // Add log entry
+        tracking.logs.push({
+            action: 'note-added',
+            userId,
+            description: 'Process report approved',
+            details: { reportReceived: true }
+        });
+
+        await tracking.save();
+
+        res.json({
+            success: true,
+            message: 'Report approved successfully',
+            data: tracking
+        });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+};
+
+// Check if process can start based on dependencies
+export const checkProcessDependencies = async (req, res) => {
+    try {
+        const { workOrderId, processSequence } = req.body;
+
+        if (processSequence === 0 || processSequence === 1) {
+            // First process can always start
+            return res.json({
+                success: true,
+                canStart: true,
+                message: 'First process can start'
+            });
+        }
+
+        // Get work order with all process trackings
+        const workOrder = await WorkOrder.findById(workOrderId)
+            .populate('processAssignments.processId');
+
+        if (!workOrder) {
+            return res.status(404).json({ success: false, message: 'Work order not found' });
+        }
+
+        // Find previous process assignment
+        const previousProcess = workOrder.processAssignments.find(
+            pa => pa.sequence === processSequence - 1
+        );
+
+        if (!previousProcess) {
+            return res.json({
+                success: true,
+                canStart: true,
+                message: 'No previous process found'
+            });
+        }
+
+        // Get previous process tracking
+        const previousTracking = await ProcessTracking.findOne({
+            processAssignmentId: previousProcess._id
+        });
+
+        if (!previousTracking) {
+            return res.json({
+                success: true,
+                canStart: false,
+                blockReason: 'Previous process tracking not initialized',
+                message: `Waiting for ${previousProcess.processName} to be initialized`,
+                previousProcessName: previousProcess.processName
+            });
+        }
+
+        // Check if previous process is completed
+        if (previousTracking.status !== 'completed') {
+            return res.json({
+                success: true,
+                canStart: false,
+                blockReason: 'Previous process not completed',
+                message: `Waiting for ${previousTracking.processName} to complete`,
+                previousProcessName: previousTracking.processName,
+                previousProcessStatus: previousTracking.status,
+                previousProcessProgress: previousTracking.progressPercentage
+            });
+        }
+
+        // Check if report is required and uploaded
+        const reportRequired = previousProcess.requiresReport || previousProcess.addReportAfter;
+        if (reportRequired && !previousTracking.reportUploaded) {
+            return res.json({
+                success: true,
+                canStart: false,
+                blockReason: 'Waiting for previous process report',
+                message: `Waiting for report from ${previousTracking.processName}`,
+                previousProcessName: previousTracking.processName,
+                reportRequired: true,
+                reportUploaded: false
+            });
+        }
+
+        // All checks passed
+        return res.json({
+            success: true,
+            canStart: true,
+            message: 'Process can start',
+            previousProcessName: previousTracking.processName,
+            previousProcessCompleted: true,
+            reportStatus: previousTracking.reportUploaded ? 'uploaded' : 'not-required'
+        });
+
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

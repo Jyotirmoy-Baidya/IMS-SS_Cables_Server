@@ -6,7 +6,10 @@ import {
     addInput,
     addOutput,
     updateProgress,
-    deleteProcessTracking
+    deleteProcessTracking,
+    submitReport,
+    approveReport,
+    checkProcessDependencies
 } from '../contollers/ProcessTrackingControllers.js';
 
 const router = express.Router();
@@ -21,5 +24,10 @@ router.delete('/:id', deleteProcessTracking);
 router.post('/:id/inputs', addInput);
 router.post('/:id/outputs', addOutput);
 router.patch('/:id/progress', updateProgress);
+
+// Report management
+router.post('/:id/submit-report', submitReport);
+router.patch('/:id/approve-report', approveReport);
+router.post('/check-dependencies', checkProcessDependencies);
 
 export default router;

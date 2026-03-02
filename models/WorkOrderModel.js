@@ -18,7 +18,9 @@ const processAssignmentSchema = new mongoose.Schema(
             ref: 'Location',
         },
         locationName: { type: String, default: '' }, // Denormalized
+        sequence: { type: Number, default: 0 }, // Process sequence/order
         addReportAfter: { type: Boolean, default: false },
+        requiresReport: { type: Boolean, default: false }, // Alias for addReportAfter
         status: {
             type: String,
             enum: ['pending', 'in-progress', 'completed'],
@@ -32,6 +34,11 @@ const processAssignmentSchema = new mongoose.Schema(
         producedSpec: { type: String, default: '' }, // e.g., "0.5sq mm"
         storageLocation: { type: String, default: '' }, // e.g., "bobbin count 10 in shelf 2"
         progressPercentage: { type: Number, default: 0, min: 0, max: 100 },
+
+        // Report tracking
+        reportUploaded: { type: Boolean, default: false },
+        reportUrl: { type: String, default: '' },
+        reportUploadedAt: { type: Date },
 
         notes: { type: String, default: '' },
         reportData: { type: mongoose.Schema.Types.Mixed, default: null },
