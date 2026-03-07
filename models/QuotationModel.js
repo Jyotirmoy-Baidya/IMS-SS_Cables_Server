@@ -11,6 +11,89 @@ const deliveryAddressSchema = new mongoose.Schema(
     { _id: false }
 );
 
+// Process entry schema for cores and sheaths
+const processEntrySchema = new mongoose.Schema({
+    processId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Process',
+        required: true
+    },
+    processName: { type: String, required: true },
+    category: { type: String, default: '' },
+    formula: { type: String, default: '' },
+    formulaNote: { type: String, default: '' },
+    variables: [{
+        name: { type: String, required: true },
+        label: { type: String, required: true },
+        unit: { type: String, default: '' },
+        source: { type: String, default: 'manual' },
+        defaultValue: { type: Number, default: 0 },
+        value: { type: Number, default: 0 }
+    }]
+}, { _id: true });
+
+// Core insulation schema
+const coreInsulationSchema = new mongoose.Schema({
+    materialTypeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'RawMaterial'
+    },
+    materialTypeName: { type: String, default: '' },
+    density: { type: Number, default: 1.4 },
+    thickness: { type: Number, default: 0.5 },
+    freshPercent: { type: Number, default: 70, min: 0, max: 100 },
+    reprocessPercent: { type: Number, default: 30, min: 0, max: 100 },
+    freshPricePerKg: { type: Number, default: 0 },
+    reprocessMaterialTypeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'RawMaterial'
+    },
+    reprocessMaterialTypeName: { type: String, default: '' },
+    reprocessDensity: { type: Number, default: null },
+    reprocessPricePerKg: { type: Number, default: 0 }
+}, { _id: false });
+
+// Core schema
+const coreSchema = new mongoose.Schema({
+    materialTypeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'RawMaterial'
+    },
+    materialDensity: { type: Number, default: 8.96 },
+    totalCoreArea: { type: Number, default: 8 },
+    wireCount: { type: Number, default: 16 },
+    wastagePercent: { type: Number, default: 5 },
+    selectedRod: { type: mongoose.Schema.Types.Mixed, default: null },
+    hasAnnealing: { type: Boolean, default: false },
+    coreLength: { type: Number, default: null },  // Individual core length (defaults to cable length if null)
+    processes: [processEntrySchema],  // Processes for this core
+    insulation: { type: coreInsulationSchema, default: () => ({}) }
+}, { _id: true });
+
+// Sheath group schema
+const sheathGroupSchema = new mongoose.Schema({
+    coreIds: [{ type: mongoose.Schema.Types.ObjectId }],
+    sheathIds: [{ type: mongoose.Schema.Types.ObjectId }],
+    material: { type: String, default: '' },
+    materialTypeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'RawMaterial'
+    },
+    density: { type: Number, default: 1.4 },
+    thickness: { type: Number, default: 1.0 },
+    freshPercent: { type: Number, default: 60, min: 0, max: 100 },
+    reprocessPercent: { type: Number, default: 40, min: 0, max: 100 },
+    freshPricePerKg: { type: Number, default: 0 },
+    reprocessMaterialTypeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'RawMaterial'
+    },
+    reprocessMaterialTypeName: { type: String, default: '' },
+    reprocessDensity: { type: Number, default: null },
+    reprocessPricePerKg: { type: Number, default: 0 },
+    processes: [processEntrySchema]  // Processes for this sheath
+}, { _id: true });
+
 const quotationSchema = new mongoose.Schema(
     {
         quoteNumber: {
@@ -37,11 +120,11 @@ const quotationSchema = new mongoose.Schema(
             default: null,
         },
 
-        // Cable configuration (stored as-is from frontend state)
+        // Cable configuration
         cableLength:    { type: Number, default: 100 },
-        cores:          { type: mongoose.Schema.Types.Mixed, default: [] },
-        sheathGroups:   { type: mongoose.Schema.Types.Mixed, default: [] },
-        quoteProcesses: { type: mongoose.Schema.Types.Mixed, default: [] },
+        cores:          { type: [coreSchema], default: [] },
+        sheathGroups:   { type: [sheathGroupSchema], default: [] },
+        quoteProcesses: { type: [processEntrySchema], default: [] },
 
         // Cost summary (computed on save by frontend)
         materialCost:        { type: Number, default: 0 },
@@ -50,19 +133,6 @@ const quotationSchema = new mongoose.Schema(
         profitMarginPercent: { type: Number, default: 0 },
         profitAmount:        { type: Number, default: 0 },
         finalPrice:          { type: Number, default: 0 },
-
-        // Required materials (calculated and stored when quotation is saved)
-        requiredMaterialsQuantity: [{
-            materialId: {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: 'RawMaterial',
-                required: true
-            },
-            materialName: String,
-            category: String,
-            requiredWeight: { type: Number, required: true, min: 0 },
-            purpose: String // e.g., 'conductor', 'insulation-fresh', 'sheath-reprocess'
-        }],
 
         // Delivery / notes (updated from list page)
         deliveryType:          { type: String, enum: ['drum', 'bobbin', 'coil', 'packed', 'other', ''], default: '' },
