@@ -126,6 +126,35 @@ const getOneRawMaterial = async (req, res) => {
   }
 };
 
+// Get multiple raw materials by IDs (for pricing lookup)
+const getByIds = async (req, res) => {
+  try {
+    const { materialIds } = req.body;
+    console.log(materialIds);
+    if (!materialIds || !Array.isArray(materialIds)) {
+      return res.status(400).json({
+        success: false,
+        message: 'materialIds array is required'
+      });
+    }
+
+    const materials = await RawMaterial.find({
+      _id: { $in: materialIds }
+    }).select('_id name category inventory reprocessInventory');
+
+    res.status(200).json({
+      success: true,
+      message: 'Raw materials retrieved successfully',
+      data: materials
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 // Update raw material
 const updateRawMaterial = async (req, res) => {
   try {
@@ -334,6 +363,7 @@ export {
   addRawMaterial,
   getAllRawMaterials,
   getOneRawMaterial,
+  getByIds,
   updateRawMaterial,
   deleteRawMaterial,
   recalculateInventory,

@@ -3,6 +3,7 @@ import {
   addRawMaterial,
   getAllRawMaterials,
   getOneRawMaterial,
+  getByIds,
   updateRawMaterial,
   deleteRawMaterial,
   recalculateInventory,
@@ -17,6 +18,7 @@ const router = express.Router();
 router.post('/add-material', addRawMaterial);
 router.get('/get-all-materials', getAllRawMaterials);
 router.get('/get-one-material/:id', getOneRawMaterial);
+router.post('/get-by-ids', getByIds);
 router.put('/update-material/:id', updateRawMaterial);
 router.delete('/delete-material/:id', deleteRawMaterial);
 router.post('/recalculate-inventory/:id', recalculateInventory);

@@ -48,12 +48,19 @@ export const getQuotationById = async (req, res) => {
 
 export const updateQuotation = async (req, res) => {
     try {
-        const quotation = await Quotation.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            { new: true, runValidators: false }
-        ).populate('customerId', 'companyName address contacts');
+        // Find the quotation first
+        const quotation = await Quotation.findById(req.params.id);
         if (!quotation) return res.status(404).json({ success: false, message: 'Quotation not found' });
+
+        // Update properties
+        Object.assign(quotation, req.body);
+
+        // Save to trigger pre-save hook (recalculates materialRequired)
+        await quotation.save();
+
+        // Populate after save
+        await quotation.populate('customerId', 'companyName address contacts');
+
         res.json({ success: true, message: 'Quotation updated', data: quotation });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
