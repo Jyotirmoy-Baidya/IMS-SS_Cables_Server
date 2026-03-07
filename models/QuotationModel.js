@@ -375,8 +375,8 @@ quotationSchema.pre('save', async function () {
                 const totalCoreArea = core.totalCoreArea;
                 const wireCount = core.wireCount;
                 const thickness = core.insulation.thickness || 0.5;
-                const freshPercent = core.insulation.freshPercent || 70;
-                const reprocessPercent = core.insulation.reprocessPercent || 30;
+                const freshPercent = core.insulation.freshPercent || 0;
+                const reprocessPercent = core.insulation.reprocessPercent || 0;
                 const freshDensity = core.insulation.density || 1.4;
                 const reprocessDensity = core.insulation.reprocessDensity || freshDensity;
 
@@ -385,7 +385,20 @@ quotationSchema.pre('save', async function () {
                 const diameterPerWire = 2 * Math.sqrt(areaPerWire / Math.PI);
 
                 let coreDiameter;
-                coreDiameter = 2 * Math.sqrt(totalCoreArea / Math.PI);
+
+                const calculateCoreDiameter = (wireDiameter, wireCount) => {
+                    if (wireCount === 1) {
+                        return wireDiameter;
+                    }
+
+                    const packingEfficiency = 0.90;
+                    // return wireDiameter * Math.sqrt(wireCount / packingEfficiency);
+                    // Approximate formula for stranded conductor diameter
+                    return Math.sqrt(wireCount) * wireDiameter / 2;
+                };
+
+                coreDiameter = calculateCoreDiameter(diameterPerWire, wireCount);
+
                 // if (wireCount === 1) {
                 //     coreDiameter = diameterPerWire;
                 // } else if (wireCount === 7) {
@@ -409,10 +422,10 @@ quotationSchema.pre('save', async function () {
 
                 // Calculate fresh insulation weight (matching frontend calculation)
                 const freshWeight = (volumeCm3 * (freshPercent / 100) * freshDensity) / 1000;
-
                 // Calculate reprocess insulation weight (matching frontend calculation)
                 const reprocessWeight = (volumeCm3 * (reprocessPercent / 100) * reprocessDensity) / 1000;
 
+                console.log("fresh weight", reprocessWeight);
                 // Add fresh insulation material
                 if (freshWeight > 0 && core.insulation.materialId && freshPercent) {
                     materialRequired.push({
