@@ -32,89 +32,7 @@ const processEntrySchema = new mongoose.Schema({
     }]
 }, { _id: true });
 
-// Core insulation schema
-const coreInsulationSchema = new mongoose.Schema({
-    materialTypeId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'RawMaterial'
-    },
-    materialId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'RawMaterial'
-        // Same as materialTypeId (for consistency)
-    },
-    materialTypeName: { type: String, default: '' },
-    density: { type: Number, default: 1.4 },
-    thickness: { type: Number, default: 0.5 },
-    wastagePercent: { type: Number, default: 0, min: 0, max: 100 },
-    freshPercent: { type: Number, default: 70, min: 0, max: 100 },
-    reprocessPercent: { type: Number, default: 30, min: 0, max: 100 },
-    freshPricePerKg: { type: Number, default: 0 },
-    reprocessMaterialTypeId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'RawMaterial'
-    },
-    reprocessMaterialId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'RawMaterial'
-        // Actual reprocess raw material instance
-    },
-    reprocessMaterialTypeName: { type: String, default: '' },
-    reprocessDensity: { type: Number, default: null },
-    reprocessPricePerKg: { type: Number, default: 0 }
-}, { _id: false });
-
-// Core schema
-const coreSchema = new mongoose.Schema({
-    materialTypeId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'RawMaterial'
-    },
-    materialId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'RawMaterial'
-        // Actual raw material ID from selectedRod
-    },
-    materialDensity: { type: Number, default: 8.96 },
-    totalCoreArea: { type: Number, default: 8 },
-    wireCount: { type: Number, default: 16 },
-    wastagePercent: { type: Number, default: 5 },
-    selectedRod: { type: mongoose.Schema.Types.Mixed, default: null },
-    hasAnnealing: { type: Boolean, default: false },
-    coreLength: { type: Number, default: null },  // Individual core length (defaults to cable length if null)
-    processes: [processEntrySchema],  // Processes for this core
-    insulation: { type: coreInsulationSchema, default: () => ({}) },
-
-    // Calculated material requirements for this core
-    materialRequired: [{
-        materialId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'RawMaterial'
-        },
-        materialName: { type: String, default: '' },
-        category: {
-            type: String,
-            enum: ['metal', 'insulation', 'plastic'],
-            required: true
-        },
-        purpose: {
-            type: String,
-            enum: ['conductor', 'insulation-fresh', 'insulation-reprocess'],
-            required: true
-        },
-        weight: {
-            type: Number,
-            required: true,
-            min: 0
-            // Weight in kg
-        },
-        type: {
-            type: String,
-            enum: ['fresh', 'reprocess'],
-            required: true
-        }
-    }]
-}, { _id: true });
+// Core schema removed - now using Core model reference
 
 // Sheath group schema
 const sheathGroupSchema = new mongoose.Schema({
@@ -209,7 +127,10 @@ const quotationSchema = new mongoose.Schema(
 
         // Cable configuration
         cableLength: { type: Number, default: 100 },
-        cores: { type: [coreSchema], default: [] },
+        cores: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Core'
+        }],
         sheathGroups: { type: [sheathGroupSchema], default: [] },
         quoteProcesses: { type: [processEntrySchema], default: [] },
 
@@ -245,43 +166,23 @@ quotationSchema.pre('validate', async function () {
     }
 });
 
-// Calculate material requirements for each core and sheath before save
+// Calculate material requirements for sheaths before save
+// Note: Cores are now separate documents, so we need to populate them first
 quotationSchema.pre('save', async function () {
     const cableLength = this.cableLength || 100;
 
-    // ═══════════════════════════════════════════════════════
-    // POPULATE MATERIAL IDs
-    // ═══════════════════════════════════════════════════════
-
-    // Set materialId for cores and their insulation
-    if (this.cores && this.cores.length > 0) {
-        this.cores.forEach(core => {
-            // Core conductor materialId from selectedRod
-            if (core.selectedRod && core.selectedRod._id) {
-                core.materialId = core.selectedRod._id;
-            }
-        });
+    // Populate cores if they are ObjectIds (for sheath calculations)
+    if (this.cores && this.cores.length > 0 && !this.populated('cores')) {
+        await this.populate('cores');
     }
 
-
-    // Helper function to get core outer dimensions
+    // Helper function to get core outer dimensions from Core model
     const getCoreOuterDimensions = (coreId) => {
         const core = this.cores.find(c => (String(c._id) === String(coreId) || String(c.id) === String(coreId)));
         if (!core) return { diameter: 0, area: 0 };
 
-        const totalCoreArea = core.totalCoreArea;
-        const wireCount = core.wireCount;
-        const thickness = core.insulation?.thickness || 0.5;
-
-        // Calculate core diameter
-        const areaPerWire = totalCoreArea / wireCount;
-        const diameterPerWire = 2 * Math.sqrt(areaPerWire / Math.PI);
-
-        let coreDiameter;
-
-        coreDiameter = 2 * Math.sqrt(totalCoreArea / Math.PI);
-
-        const insulatedDiameter = coreDiameter + (2 * thickness);
+        // Core model has insulation.insulatedDiameter already calculated
+        const insulatedDiameter = core.insulation?.insulatedDiameter || 0;
         const outerArea = (Math.PI * insulatedDiameter * insulatedDiameter) / 4;
 
         return { diameter: insulatedDiameter, area: outerArea };
@@ -322,152 +223,6 @@ quotationSchema.pre('save', async function () {
 
         return { diameter: sheathOuterDiameter, area: outerArea };
     };
-
-    // Process each core and calculate its material requirements
-    if (this.cores && this.cores.length > 0) {
-        this.cores.forEach(core => {
-            const coreCableLength = core.coreLength || cableLength;
-            const materialRequired = [];
-
-            // ═══════════════════════════════════════════════════════
-            // CONDUCTOR CALCULATIONS
-            // ═══════════════════════════════════════════════════════
-            if (core.totalCoreArea && core.wireCount) {
-                const totalCoreArea = core.totalCoreArea;
-                const wireCount = core.wireCount;
-                const density = core.materialDensity || 8.96;
-                const wastagePercent = core.wastagePercent || 0;
-
-                // Calculate wire dimensions
-                const areaPerWire = totalCoreArea / wireCount;
-                const diameterPerWire = 2 * Math.sqrt(areaPerWire / Math.PI);
-
-                // Calculate drawing length (layering factor based on wire count)
-                let layeringFactor = 1.02; // Single wire default
-                if (wireCount === 7) layeringFactor = 1.05;
-                else if (wireCount === 19) layeringFactor = 1.08;
-                else if (wireCount === 37) layeringFactor = 1.10;
-                else if (wireCount > 37) layeringFactor = 1.12;
-
-                const drawingLength = coreCableLength * wireCount;
-
-                // Calculate material weight with wastage
-                const materialWeight = (totalCoreArea * coreCableLength * density * (1 + wastagePercent / 100)) / 1000;
-
-                if (materialWeight > 0 && core.materialId) {
-                    materialRequired.push({
-                        materialId: core.materialId,
-                        materialName: core.selectedRod?.name || 'Metal',
-                        category: 'metal',
-                        purpose: 'conductor',
-                        weight: parseFloat(materialWeight.toFixed(4)),
-                        type: 'fresh'
-                    });
-                }
-            }
-
-            // ═══════════════════════════════════════════════════════
-            // INSULATION CALCULATIONS
-            // ═══════════════════════════════════════════════════════
-            console.log('Checking insulation calc - insulation:', !!core.insulation, 'totalCoreArea:', core.totalCoreArea, 'wireCount:', core.wireCount);
-            if (core.insulation && core.totalCoreArea && core.wireCount) {
-                console.log('Starting insulation calculation');
-                const totalCoreArea = core.totalCoreArea;
-                const wireCount = core.wireCount;
-                const thickness = core.insulation.thickness || 0.5;
-                const wastagePercent = core.insulation.wastagePercent || 0;
-                const freshPercent = core.insulation.freshPercent || 0;
-                const reprocessPercent = core.insulation.reprocessPercent || 0;
-                const freshDensity = core.insulation.density || 1.4;
-                const reprocessDensity = core.insulation.reprocessDensity || freshDensity;
-
-                // Calculate core diameter
-                const areaPerWire = totalCoreArea / wireCount;
-                const diameterPerWire = 2 * Math.sqrt(areaPerWire / Math.PI);
-
-                let coreDiameter;
-
-                const calculateCoreDiameter = (wireDiameter, wireCount) => {
-                    if (wireCount === 1) {
-                        return wireDiameter;
-                    }
-
-                    const packingEfficiency = 0.90;
-                    // return wireDiameter * Math.sqrt(wireCount / packingEfficiency);
-                    // Approximate formula for stranded conductor diameter
-                    return Math.sqrt(wireCount) * wireDiameter / 2;
-                };
-
-                coreDiameter = calculateCoreDiameter(diameterPerWire, wireCount);
-
-                // if (wireCount === 1) {
-                //     coreDiameter = diameterPerWire;
-                // } else if (wireCount === 7) {
-                //     coreDiameter = 3 * diameterPerWire;
-                // } else if (wireCount === 19) {
-                //     coreDiameter = 4.3 * diameterPerWire;
-                // } else if (wireCount === 37) {
-                //     coreDiameter = 6.2 * diameterPerWire;
-                // } else {
-                //     coreDiameter = diameterPerWire * Math.sqrt(wireCount);
-                // }
-
-                // Calculate insulated diameter
-                const insulatedDiameter = coreDiameter + (2 * thickness);
-
-                // Calculate insulation volume
-                const outerRadius = insulatedDiameter / 2;
-                const innerRadius = coreDiameter / 2;
-                const volumeMm3 = Math.PI * (outerRadius ** 2 - innerRadius ** 2) * coreCableLength * 1000;
-                const volumeCm3 = volumeMm3 / 1000;
-
-                // Calculate fresh insulation weight with wastage
-                const freshWeight = (volumeCm3 * (freshPercent / 100) * freshDensity * (1 + wastagePercent / 100)) / 1000;
-                // Calculate reprocess insulation weight with wastage
-                const reprocessWeight = (volumeCm3 * (reprocessPercent / 100) * reprocessDensity * (1 + wastagePercent / 100)) / 1000;
-
-                console.log("fresh weight", reprocessWeight);
-                // Add fresh insulation material
-                if (freshWeight > 0 && core.insulation.materialId && freshPercent) {
-                    materialRequired.push({
-                        materialId: core.insulation.materialId,
-                        materialName: core.insulation.materialTypeName || 'Insulation',
-                        category: 'insulation',
-                        purpose: 'insulation-fresh',
-                        weight: parseFloat(freshWeight.toFixed(4)),
-                        type: 'fresh'
-                    });
-                    console.log('Added insulation fresh:', core.insulation.materialId, freshWeight);
-                } else {
-                    console.log('Skipped insulation fresh - weight:', freshWeight, 'materialId:', core.insulation?.materialId);
-                }
-
-                // Add reprocess insulation material
-                if (reprocessWeight > 0 && reprocessPercent) {
-                    const reprocessMaterialId = core.insulation.reprocessMaterialId || core.insulation.materialId;
-                    const reprocessMaterialName = core.insulation.reprocessMaterialTypeName || core.insulation.materialTypeName || 'Insulation';
-
-                    if (reprocessMaterialId) {
-                        materialRequired.push({
-                            materialId: reprocessMaterialId,
-                            materialName: reprocessMaterialName,
-                            category: 'insulation',
-                            purpose: 'insulation-reprocess',
-                            weight: parseFloat(reprocessWeight.toFixed(4)),
-                            type: 'reprocess'
-                        });
-                        console.log('Added insulation reprocess:', reprocessMaterialId, reprocessWeight);
-                    } else {
-                        console.log('Skipped insulation reprocess - no materialId');
-                    }
-                }
-            }
-
-            // Assign calculated materials to this core
-            core.materialRequired = materialRequired;
-            console.log('Core materialRequired:', JSON.stringify(materialRequired));
-        });
-    }
 
     // Process each sheath group and calculate its material requirements
     if (this.sheathGroups && this.sheathGroups.length > 0) {

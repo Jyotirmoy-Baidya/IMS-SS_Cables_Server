@@ -6,6 +6,9 @@ import {
     updateQuotation,
     patchQuotation,
     deleteQuotation,
+    addCoreToQuotation,
+    updateCoreInQuotation,
+    deleteCoreFromQuotation,
 } from '../contollers/QuotationControllers.js';
 import { calculateMaterialRequirements } from '../contollers/QuotationMaterialControllers.js';
 
@@ -18,5 +21,10 @@ router.put('/update-quotation/:id', updateQuotation);
 router.patch('/patch-quotation/:id', patchQuotation);
 router.delete('/delete-quotation/:id', deleteQuotation);
 router.post('/calculate-material-requirements', calculateMaterialRequirements);
+
+// Core management routes
+router.post('/:id/cores', addCoreToQuotation);
+router.put('/:id/cores/:coreId', updateCoreInQuotation);
+router.delete('/:id/cores/:coreId', deleteCoreFromQuotation);
 
 export default router;

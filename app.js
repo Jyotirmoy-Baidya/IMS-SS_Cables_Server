@@ -17,6 +17,8 @@ import wipInventoryRoutes from "./routes/WIPInventoryRoutes.js"
 import finishedGoodsRoutes from "./routes/FinishedGoodsRoutes.js"
 import employeeRoutes from "./routes/EmployeeRoutes.js"
 import intermediateProductRoutes from "./routes/IntermediateProductRoutes.js"
+import coreRoutes from "./routes/CoreRoutes.js"
+import quotePriceRoutes from "./routes/QuotePriceRoutes.js"
 const app = express()
 
 app.use(
@@ -50,5 +52,7 @@ app.use("/api/wip-inventory", wipInventoryRoutes);
 app.use("/api/finished-goods", finishedGoodsRoutes);
 app.use("/api/employee", employeeRoutes);
 app.use("/api/intermediate-product", intermediateProductRoutes);
+app.use("/api/core", coreRoutes);
+app.use("/api/quote-price", quotePriceRoutes);
 
 export default app
