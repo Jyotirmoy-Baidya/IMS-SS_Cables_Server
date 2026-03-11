@@ -12,13 +12,13 @@ const transformCoreData = (frontendCore, coreNumber, quotationId = null) => {
 
         conductor: {
             materialTypeId: frontendCore.materialTypeId,
-            materialTypeName: frontendCore.selectedRod?.materialTypeName || '',
+            materialTypeName: frontendCore.materialTypeName || frontendCore.selectedRod?.materialTypeName || '',
             materialId: frontendCore.materialId || frontendCore.selectedRod?._id,
 
             selectedRod: frontendCore.selectedRod ? {
                 rodId: frontendCore.selectedRod._id,
                 rodName: frontendCore.selectedRod.name || '',
-                diameter: frontendCore.selectedRod.specifications?.dimensions || 0,
+                diameter: frontendCore.selectedRod.specifications?.dimensionValue || 0,
                 density: frontendCore.materialDensity || 8.96
             } : undefined,
 
@@ -32,22 +32,29 @@ const transformCoreData = (frontendCore, coreNumber, quotationId = null) => {
             hasAnnealing: frontendCore.hasAnnealing || false
         },
 
-        insulation: {
-            materialTypeId: frontendCore.insulation?.materialTypeId,
-            materialTypeName: frontendCore.insulation?.materialTypeName || '',
-            materialId: frontendCore.insulation?.materialId,
-            reprocessMaterialId: frontendCore.insulation?.reprocessMaterialId,
+        insulation: frontendCore.hasInsulation !== false && frontendCore.insulation?.materialTypeId ? {
+            materialTypeId: frontendCore.insulation.materialTypeId,
+            materialTypeName: frontendCore.insulation.materialTypeName || '',
+            materialId: frontendCore.insulation.materialId,
+            reprocessMaterialId: frontendCore.insulation.reprocessMaterialId,
 
-            thickness: frontendCore.insulation?.thickness || 0,
-            density: frontendCore.insulation?.density || 1.4,
-            freshPercent: frontendCore.insulation?.freshPercent || 100,
-            reprocessPercent: frontendCore.insulation?.reprocessPercent || 0,
-            wastagePercent: frontendCore.insulation?.wastagePercent || 0,
+            thickness: frontendCore.insulation.thickness || 0,
+            density: frontendCore.insulation.density || 1.4,
+            freshPercent: frontendCore.insulation.freshPercent || 100,
+            reprocessPercent: frontendCore.insulation.reprocessPercent || 0,
+            wastagePercent: frontendCore.insulation.wastagePercent || 0,
             insulatedDiameter: 0, // Will be calculated
             insulationWeight: 0 // Will be calculated
-        },
+        } : undefined,
 
-        processes: frontendCore.processes || [],
+        processes: (frontendCore.processes || []).map(p => ({
+            ...p,
+            output: p.output ? {
+                ...p.output,
+                outputType: (p.output.outputType || '').toLowerCase() === 'intermediateproduct' ? 'intermediate' :
+                           (p.output.outputType || 'none').toLowerCase()
+            } : { outputType: 'none' }
+        })),
         materialRequired: frontendCore.materialRequired || [],
 
         costs: {

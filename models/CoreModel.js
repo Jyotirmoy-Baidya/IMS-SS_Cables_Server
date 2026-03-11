@@ -101,14 +101,13 @@ const CoreSchema = new mongoose.Schema({
         hasAnnealing: { type: Boolean, default: false }
     },
 
-    // Insulation specifications
+    // Insulation specifications (optional - only if insulation is added)
     insulation: {
         materialTypeId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'RawMaterialType',
-            required: true
+            ref: 'RawMaterialType'
         },
-        materialTypeName: { type: String, required: true },
+        materialTypeName: { type: String, default: '' },
         materialId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'RawMaterial'
