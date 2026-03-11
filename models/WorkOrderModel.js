@@ -8,6 +8,8 @@ const processAssignmentSchema = new mongoose.Schema(
             required: true,
         },
         processName: { type: String, required: true }, // Denormalized
+        processCategory: { type: String, default: '' }, // conductor/insulation/sheathing/general
+
         assignedEmployeeId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
@@ -19,29 +21,78 @@ const processAssignmentSchema = new mongoose.Schema(
         },
         locationName: { type: String, default: '' }, // Denormalized
         sequence: { type: Number, default: 0 }, // Process sequence/order
+
+        // Cost information (from quotation)
+        processCost: { type: Number, default: 0 }, // Calculated cost from formula
+        costFormula: { type: String, default: '' }, // The formula used
+
+        // Process variables (snapshot from quotation)
+        variables: [{
+            name: String,
+            label: String,
+            value: Number,
+            unit: String,
+            source: String
+        }],
+
+        // Expected output (from quotation process output config)
+        expectedOutput: {
+            outputType: {
+                type: String,
+                enum: ['intermediate', 'final', 'none'],
+                default: 'none'
+            },
+            expectedQuantity: { type: Number, default: 0 },
+            expectedItemName: { type: String, default: '' },
+            expectedSpecification: { type: String, default: '' },
+            unit: { type: String, default: 'm' },
+            quantityFormula: { type: String, default: '' },
+            itemNameTemplate: { type: String, default: '' },
+            specificationTemplate: { type: String, default: '' }
+        },
+
+        // Actual production output
+        actualOutput: {
+            producedQuantity: { type: Number, default: 0 },
+            producedItemName: { type: String, default: '' },
+            producedSpecification: { type: String, default: '' },
+            storageLocation: { type: String, default: '' }, // e.g., "bobbin count 10 in shelf 2"
+            productId: { type: mongoose.Schema.Types.ObjectId, ref: 'IntermediateProduct' }, // If intermediate
+            // Quality metrics
+            qualityGrade: { type: String, enum: ['A', 'B', 'C', 'rejected', ''], default: '' },
+            defectRate: { type: Number, default: 0, min: 0, max: 100 }, // Percentage
+            notes: { type: String, default: '' }
+        },
+
+        // Status tracking
         addReportAfter: { type: Boolean, default: false },
         requiresReport: { type: Boolean, default: false }, // Alias for addReportAfter
         status: {
             type: String,
-            enum: ['pending', 'in-progress', 'completed'],
+            enum: ['pending', 'in-progress', 'completed', 'on-hold', 'failed'],
             default: 'pending',
         },
         startedAt: { type: Date },
         completedAt: { type: Date },
-
-        // Intermediate product details
-        producedQuantity: { type: Number, default: 0 }, // e.g., 100m
-        producedSpec: { type: String, default: '' }, // e.g., "0.5sq mm"
-        storageLocation: { type: String, default: '' }, // e.g., "bobbin count 10 in shelf 2"
         progressPercentage: { type: Number, default: 0, min: 0, max: 100 },
 
         // Report tracking
         reportUploaded: { type: Boolean, default: false },
         reportUrl: { type: String, default: '' },
         reportUploadedAt: { type: Date },
+        reportData: { type: mongoose.Schema.Types.Mixed, default: null },
+
+        // Input consumption tracking
+        inputsConsumed: [{
+            inputType: { type: String, enum: ['RawMaterial', 'IntermediateProduct'] },
+            materialId: mongoose.Schema.Types.ObjectId, // RawMaterial or IntermediateProduct
+            materialName: String,
+            quantityConsumed: Number,
+            unit: String,
+            consumedAt: { type: Date, default: Date.now }
+        }],
 
         notes: { type: String, default: '' },
-        reportData: { type: mongoose.Schema.Types.Mixed, default: null },
     },
     { _id: true }
 );
@@ -194,6 +245,12 @@ const workOrderSchema = new mongoose.Schema(
         }],
 
         notes: { type: String, default: '' },
+
+        // Related work orders (for linked/dependent orders)
+        relatedWorkOrders: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'WorkOrder'
+        }],
     },
     { timestamps: true }
 );

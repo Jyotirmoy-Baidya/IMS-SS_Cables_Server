@@ -9,7 +9,7 @@ export const createWorkOrder = async (req, res) => {
     let workOrder = null;
 
     try {
-        const { quoteId, processAssignments, notes } = req.body;
+        const { quoteId, processAssignments, materialRequirements, processCosts, notes } = req.body;
 
         // Fetch quotation
         const quotation = await Quotation.findById(quoteId);
@@ -17,24 +17,21 @@ export const createWorkOrder = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Quotation not found' });
         }
 
-        // Calculate material costs from quotation
-        const materialCostsBreakdown = (quotation.requiredMaterialsQuantity || []).map(req => ({
+        // Use material requirements from request (calculated from materialRequired arrays)
+        const materialCostsBreakdown = (materialRequirements || []).map(req => ({
             materialId: req.materialId,
             materialName: req.materialName,
-            quantity: req.requiredWeight,
+            quantity: req.totalWeight,
             unit: 'kg',
-            pricePerUnit: 0, // Will be calculated from allocated lots
-            totalCost: 0
+            pricePerUnit: req.pricePerKg || 0,
+            totalCost: req.totalCost || 0
         }));
 
-        // Calculate process costs from quotation processes
-        const processCostsBreakdown = (quotation.quoteProcesses || []).map(proc => ({
-            processId: proc.processId,
-            processName: proc.processName,
-            cost: proc.cost || 0
-        }));
+        // Use process costs from request
+        const processCostsBreakdown = processCosts || [];
 
         const totalProcessCost = processCostsBreakdown.reduce((sum, p) => sum + (p.cost || 0), 0);
+        const totalMaterialCost = materialCostsBreakdown.reduce((sum, m) => sum + (m.totalCost || 0), 0);
 
         // Create work order with costing
         workOrder = await WorkOrder.create({
@@ -46,7 +43,7 @@ export const createWorkOrder = async (req, res) => {
             notes: notes || '',
             allocatedMaterials: [],
             materialCosts: {
-                totalCost: 0, // Will be updated after allocation
+                totalCost: totalMaterialCost,
                 breakdown: materialCostsBreakdown
             },
             processCosts: {
@@ -54,25 +51,24 @@ export const createWorkOrder = async (req, res) => {
                 breakdown: processCostsBreakdown
             },
             finalCost: {
-                materialCost: 0,
+                materialCost: totalMaterialCost,
                 processCost: totalProcessCost,
                 profitMargin: quotation.profitMarginPercent || 0,
-                profitAmount: 0,
-                grandTotal: 0
-            }
+                profitAmount: (totalMaterialCost + totalProcessCost) * (quotation.profitMarginPercent / 100),
+                grandTotal: (totalMaterialCost + totalProcessCost) * (1 + quotation.profitMarginPercent / 100)
+            },
+            relatedWorkOrders: [] // Empty for now, can be populated later
         });
 
-        // Use stored material requirements from quotation
-        const materialRequirements = quotation.requiredMaterialsQuantity || [];
-
+        // Use material requirements from request body
         // Allocate materials (LIFO strategy)
-        if (materialRequirements.length > 0) {
+        if (materialRequirements && materialRequirements.length > 0) {
             const allocatedMaterials = [];
 
             for (const requirement of materialRequirements) {
-                const { materialId, requiredWeight, materialName } = requirement;
+                const { materialId, totalWeight, materialName } = requirement;
 
-                if (!requiredWeight || requiredWeight <= 0) continue;
+                if (!totalWeight || totalWeight <= 0) continue;
 
                 // Find available lots for this material (LIFO - latest first)
                 const lots = await RawMaterialLot.find({
@@ -81,7 +77,7 @@ export const createWorkOrder = async (req, res) => {
                     isFullyConsumed: false,
                 }).sort({ purchaseDate: -1 });
 
-                let remainingToAllocate = requiredWeight;
+                let remainingToAllocate = totalWeight;
 
                 for (const lot of lots) {
                     if (remainingToAllocate <= 0) break;

@@ -64,9 +64,52 @@ const ProcessSchema = new mongoose.Schema({
         default: 'general'
     },
     imageUrl: { type: String, default: '' },  // Cloudinary URL – populated later
+
+    // Cost formula (existing)
     formula: { type: String, required: true, trim: true },
     formulaNote: { type: String, default: '' },  // human-readable explanation of formula
     variables: { type: [VariableSchema], default: [] },
+
+    // Output configuration
+    output: {
+        // Output type
+        outputType: {
+            type: String,
+            enum: ['intermediate', 'final', 'none'],
+            default: 'none'
+        },
+
+        // Quantity formula - calculates how much is produced
+        quantityFormula: {
+            type: String,
+            default: '',
+            trim: true
+        },
+
+        // Item name template - can use variables with ${varName} syntax
+        // Example: "Drawn ${coreTotalCoreArea}sq mm wire"
+        itemNameTemplate: {
+            type: String,
+            default: '',
+            trim: true
+        },
+
+        // Specification template - can use variables with ${varName} syntax
+        // Example: "${coreTotalCoreArea} sq mm, ${coreWireCount} wires"
+        specificationTemplate: {
+            type: String,
+            default: '',
+            trim: true
+        },
+
+        // Unit of measurement for output
+        unit: {
+            type: String,
+            default: 'm',
+            trim: true
+        }
+    },
+
     isActive: { type: Boolean, default: true }
 }, { timestamps: true });
 

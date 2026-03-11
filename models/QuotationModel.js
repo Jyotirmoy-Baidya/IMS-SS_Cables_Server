@@ -46,7 +46,7 @@ const coreInsulationSchema = new mongoose.Schema({
     materialTypeName: { type: String, default: '' },
     density: { type: Number, default: 1.4 },
     thickness: { type: Number, default: 0.5 },
-    wastagePercent: { type: Number, default: 5, min: 0, max: 100 },
+    wastagePercent: { type: Number, default: 0, min: 0, max: 100 },
     freshPercent: { type: Number, default: 70, min: 0, max: 100 },
     reprocessPercent: { type: Number, default: 30, min: 0, max: 100 },
     freshPricePerKg: { type: Number, default: 0 },
@@ -132,7 +132,7 @@ const sheathGroupSchema = new mongoose.Schema({
     },
     density: { type: Number, default: 1.4 },
     thickness: { type: Number, default: 1.0 },
-    wastagePercent: { type: Number, default: 5, min: 0, max: 100 },
+    wastagePercent: { type: Number, default: 0, min: 0, max: 100 },
     freshPercent: { type: Number, default: 60, min: 0, max: 100 },
     reprocessPercent: { type: Number, default: 40, min: 0, max: 100 },
     freshPricePerKg: { type: Number, default: 0 },
@@ -375,6 +375,7 @@ quotationSchema.pre('save', async function () {
                 const totalCoreArea = core.totalCoreArea;
                 const wireCount = core.wireCount;
                 const thickness = core.insulation.thickness || 0.5;
+                const wastagePercent = core.insulation.wastagePercent || 0;
                 const freshPercent = core.insulation.freshPercent || 0;
                 const reprocessPercent = core.insulation.reprocessPercent || 0;
                 const freshDensity = core.insulation.density || 1.4;
@@ -420,10 +421,10 @@ quotationSchema.pre('save', async function () {
                 const volumeMm3 = Math.PI * (outerRadius ** 2 - innerRadius ** 2) * coreCableLength * 1000;
                 const volumeCm3 = volumeMm3 / 1000;
 
-                // Calculate fresh insulation weight (matching frontend calculation)
-                const freshWeight = (volumeCm3 * (freshPercent / 100) * freshDensity) / 1000;
-                // Calculate reprocess insulation weight (matching frontend calculation)
-                const reprocessWeight = (volumeCm3 * (reprocessPercent / 100) * reprocessDensity) / 1000;
+                // Calculate fresh insulation weight with wastage
+                const freshWeight = (volumeCm3 * (freshPercent / 100) * freshDensity * (1 + wastagePercent / 100)) / 1000;
+                // Calculate reprocess insulation weight with wastage
+                const reprocessWeight = (volumeCm3 * (reprocessPercent / 100) * reprocessDensity * (1 + wastagePercent / 100)) / 1000;
 
                 console.log("fresh weight", reprocessWeight);
                 // Add fresh insulation material
@@ -519,16 +520,17 @@ quotationSchema.pre('save', async function () {
                 const volumeMm3 = Math.PI * (outerRadius ** 2 - innerRadius ** 2) * avgLength * 1000;
                 const volumeCm3 = volumeMm3 / 1000;
 
+                const wastagePercent = sheathGroup.wastagePercent || 0;
                 const freshPercent = sheathGroup.freshPercent || 60;
                 const reprocessPercent = sheathGroup.reprocessPercent || 40;
                 const freshDensity = sheathGroup.density || 1.4;
                 const reprocessDensity = sheathGroup.reprocessDensity || freshDensity;
 
-                // Calculate fresh sheath weight (matching frontend calculation)
-                const freshWeight = (volumeCm3 * (freshPercent / 100) * freshDensity) / 1000;
+                // Calculate fresh sheath weight with wastage
+                const freshWeight = (volumeCm3 * (freshPercent / 100) * freshDensity * (1 + wastagePercent / 100)) / 1000;
 
-                // Calculate reprocess sheath weight (matching frontend calculation)
-                const reprocessWeight = (volumeCm3 * (reprocessPercent / 100) * reprocessDensity) / 1000;
+                // Calculate reprocess sheath weight with wastage
+                const reprocessWeight = (volumeCm3 * (reprocessPercent / 100) * reprocessDensity * (1 + wastagePercent / 100)) / 1000;
 
                 // Add fresh sheath material
                 if (freshWeight > 0 && sheathGroup.materialId) {
