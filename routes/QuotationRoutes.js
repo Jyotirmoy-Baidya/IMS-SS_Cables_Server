@@ -9,6 +9,9 @@ import {
     addCoreToQuotation,
     updateCoreInQuotation,
     deleteCoreFromQuotation,
+    addSheathToQuotation,
+    updateSheathInQuotation,
+    deleteSheathFromQuotation,
 } from '../contollers/QuotationControllers.js';
 import { calculateMaterialRequirements } from '../contollers/QuotationMaterialControllers.js';
 
@@ -26,5 +29,10 @@ router.post('/calculate-material-requirements', calculateMaterialRequirements);
 router.post('/:id/cores', addCoreToQuotation);
 router.put('/:id/cores/:coreId', updateCoreInQuotation);
 router.delete('/:id/cores/:coreId', deleteCoreFromQuotation);
+
+// Sheath management routes
+router.post('/:id/sheaths', addSheathToQuotation);
+router.put('/:id/sheaths/:sheathId', updateSheathInQuotation);
+router.delete('/:id/sheaths/:sheathId', deleteSheathFromQuotation);
 
 export default router;
