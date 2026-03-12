@@ -53,13 +53,5 @@ ProcessEntrySchema.index({ sheathId: 1, sequence: 1 });
 ProcessEntrySchema.index({ quotationId: 1, sequence: 1 });
 ProcessEntrySchema.index({ processId: 1 });
 
-// Ensure at least one parent reference is set
-ProcessEntrySchema.pre('save', function (next) {
-    const hasParent = this.coreId || this.sheathId || this.quotationId;
-    if (!hasParent) {
-        return next(new Error('ProcessEntry must have a parent (coreId, sheathId, or quotationId)'));
-    }
-    next();
-});
 
 export default mongoose.model('ProcessEntry', ProcessEntrySchema);

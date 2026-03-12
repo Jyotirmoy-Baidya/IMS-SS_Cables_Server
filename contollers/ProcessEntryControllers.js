@@ -32,6 +32,10 @@ export const addProcessToCore = async (req, res) => {
 
         await processEntry.save();
 
+        // Add the process entry ID to the core's processes array
+        core.processes.push(processEntry._id);
+        await core.save();
+
         res.status(201).json({
             success: true,
             message: 'Process added to core successfully',
@@ -72,6 +76,10 @@ export const addProcessToSheath = async (req, res) => {
 
         await processEntry.save();
 
+        // Add the process entry ID to the sheath's processes array
+        sheath.processes.push(processEntry._id);
+        await sheath.save();
+
         res.status(201).json({
             success: true,
             message: 'Process added to sheath successfully',
@@ -111,6 +119,10 @@ export const addProcessToQuotation = async (req, res) => {
         });
 
         await processEntry.save();
+
+        // Add the process entry ID to the quotation's quoteProcesses array
+        quotation.quoteProcesses.push(processEntry._id);
+        await quotation.save();
 
         res.status(201).json({
             success: true,
@@ -162,10 +174,31 @@ export const deleteProcessEntry = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const processEntry = await ProcessEntry.findByIdAndDelete(id);
+        const processEntry = await ProcessEntry.findById(id);
         if (!processEntry) {
             return res.status(404).json({ success: false, message: 'Process entry not found' });
         }
+
+        // Remove the process entry ID from the parent's processes array
+        if (processEntry.coreId) {
+            await Core.findByIdAndUpdate(
+                processEntry.coreId,
+                { $pull: { processes: id } }
+            );
+        } else if (processEntry.sheathId) {
+            await Sheath.findByIdAndUpdate(
+                processEntry.sheathId,
+                { $pull: { processes: id } }
+            );
+        } else if (processEntry.quotationId) {
+            await Quotation.findByIdAndUpdate(
+                processEntry.quotationId,
+                { $pull: { quoteProcesses: id } }
+            );
+        }
+
+        // Delete the process entry
+        await ProcessEntry.findByIdAndDelete(id);
 
         res.status(200).json({
             success: true,

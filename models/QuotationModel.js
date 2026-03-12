@@ -11,31 +11,6 @@ const deliveryAddressSchema = new mongoose.Schema(
     { _id: false }
 );
 
-// Process entry schema for cores and sheaths
-const processEntrySchema = new mongoose.Schema({
-    processId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Process',
-        required: true
-    },
-    processName: { type: String, required: true },
-    category: { type: String, default: '' },
-    formula: { type: String, default: '' },
-    formulaNote: { type: String, default: '' },
-    variables: [{
-        name: { type: String, required: true },
-        label: { type: String, required: true },
-        unit: { type: String, default: '' },
-        source: { type: String, default: 'manual' },
-        defaultValue: { type: Number, default: 0 },
-        value: { type: Number, default: 0 }
-    }]
-}, { _id: true });
-
-// Core schema removed - now using Core model reference
-
-// Sheath schema removed - now using Sheath model reference
-
 const quotationSchema = new mongoose.Schema(
     {
         quoteNumber: {
@@ -72,7 +47,10 @@ const quotationSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Sheath'
         }],
-        quoteProcesses: { type: [processEntrySchema], default: [] },
+        quoteProcesses: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'ProcessEntry'
+        }],
 
         // Cost summary (computed on save by frontend)
         materialCost: { type: Number, default: 0 },

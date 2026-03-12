@@ -1,46 +1,5 @@
 import mongoose from 'mongoose';
 
-const ProcessEntrySchema = new mongoose.Schema({
-    processId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Process',
-        required: true
-    },
-    processName: { type: String, required: true },
-    category: { type: String, default: '' },
-
-    // Cost information (snapshot at time of addition)
-    processCost: { type: Number, default: 0 },
-    costFormula: { type: String, default: '' },
-
-    // Variables used in calculation
-    variables: [{
-        name: String,
-        label: String,
-        value: Number,
-        unit: String,
-        source: String
-    }],
-
-    // Calculated output (generated when saved)
-    output: {
-        outputType: {
-            type: String,
-            enum: ['intermediate', 'final', 'none'],
-            default: 'none'
-        },
-        calculatedQuantity: { type: Number, default: 0 },
-        calculatedItemName: { type: String, default: '' },
-        calculatedSpecification: { type: String, default: '' },
-        unit: { type: String, default: 'm' },
-
-        // Templates for reference
-        quantityFormula: { type: String, default: '' },
-        itemNameTemplate: { type: String, default: '' },
-        specificationTemplate: { type: String, default: '' }
-    }
-}, { _id: true });
-
 const MaterialRequirementSchema = new mongoose.Schema({
     materialId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -120,11 +79,11 @@ const SheathSchema = new mongoose.Schema({
         default: []
     },
 
-    // Process entries with calculated outputs
-    processes: {
-        type: [ProcessEntrySchema],
-        default: []
-    },
+    // Process entries with calculated outputs (references)
+    processes: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ProcessEntry'
+    }],
 
     // Total costs (snapshot)
     costs: {
@@ -267,7 +226,18 @@ SheathSchema.pre('save', async function () {
 
     // Calculate costs (process costs calculated from processes array)
     const materialCost = materialRequired.reduce((sum, m) => sum + (m.totalCost || 0), 0);
-    const processCost = (this.processes || []).reduce((sum, p) => sum + (p.processCost || 0), 0);
+
+    // Populate processes to calculate process costs
+    let processCost = 0;
+    if (this.processes && this.processes.length > 0) {
+        if (!this.populated('processes')) {
+            await this.populate('processes');
+        }
+        processCost = (this.processes || []).reduce((sum, p) => {
+            const cost = p?.processCost || 0;
+            return sum + cost;
+        }, 0);
+    }
 
     this.costs.totalMaterialCost = parseFloat(materialCost.toFixed(2));
     this.costs.totalProcessCost = parseFloat(processCost.toFixed(2));

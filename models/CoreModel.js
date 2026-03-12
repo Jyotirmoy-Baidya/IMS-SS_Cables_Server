@@ -1,32 +1,5 @@
 import mongoose from 'mongoose';
 
-const ProcessEntrySchema = new mongoose.Schema({
-    processId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Process',
-        required: true
-    },
-    processName: { type: String, required: true },
-    category: { type: String, default: '' },
-
-    // Cost information (snapshot at time of addition)
-    processCost: { type: Number, default: 0 },
-
-    // Calculated output (generated when saved)
-    output: {
-        outputType: {
-            type: String,
-            enum: ['intermediate', 'final', 'none'],
-            default: 'none'
-        },
-        calculatedQuantity: { type: Number, default: 0 },
-        calculatedItemName: { type: String, default: '' },
-        calculatedSpecification: { type: String, default: '' },
-        unit: { type: String, default: 'm' },
-
-    }
-}, { _id: true });
-
 const MaterialRequirementSchema = new mongoose.Schema({
     materialId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -123,11 +96,11 @@ const CoreSchema = new mongoose.Schema({
         default: []
     },
 
-    // Process entries with calculated outputs
-    processes: {
-        type: [ProcessEntrySchema],
-        default: []
-    },
+    // Process entries with calculated outputs (references)
+    processes: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ProcessEntry'
+    }],
 
     // Total costs (snapshot)
     costs: {
