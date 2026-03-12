@@ -1,15 +1,5 @@
 import mongoose from 'mongoose';
 
-const deliveryAddressSchema = new mongoose.Schema(
-    {
-        line1: { type: String, default: '' },
-        city: { type: String, default: '' },
-        state: { type: String, default: '' },
-        pincode: { type: String, default: '' },
-        country: { type: String, default: 'India' },
-    },
-    { _id: false }
-);
 
 const quotationSchema = new mongoose.Schema(
     {
@@ -56,16 +46,6 @@ const quotationSchema = new mongoose.Schema(
         materialCost: { type: Number, default: 0 },
         processCost: { type: Number, default: 0 },
         grandTotal: { type: Number, default: 0 },
-        profitMarginPercent: { type: Number, default: 0 },
-        profitAmount: { type: Number, default: 0 },
-        finalPrice: { type: Number, default: 0 },
-
-        // Delivery / notes (updated from list page)
-        deliveryType: { type: String, enum: ['drum', 'bobbin', 'coil', 'packed', 'other', ''], default: '' },
-        deliveryQuantity: { type: String, default: '' },
-        expectedDelivery: { type: Date },
-        deliveryAddress: { type: deliveryAddressSchema, default: () => ({}) },
-        sameAsCustomerAddress: { type: Boolean, default: false },
         notes: { type: String, default: '' },
     },
     { timestamps: true }

@@ -41,34 +41,37 @@ const SheathSchema = new mongoose.Schema({
     }],
 
     // Material specifications
-    materialTypeId: {
+    freshMaterialTypeId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'RawMaterialType',
-        required: true
+        ref: 'RawMaterialType'
     },
-    materialTypeName: { type: String, required: true },
-    materialId: {
+    freshMaterialId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'RawMaterial'
+    },
+    reprocessMaterialTypeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'RawMaterialType'
     },
     reprocessMaterialId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'RawMaterial'
     },
 
-    // Sheath specifications
-    thickness: { type: Number, default: 0, min: 0 },
-    density: { type: Number, default: 0 },
-    freshPercent: { type: Number, default: 100, min: 0, max: 100 },
-    reprocessPercent: { type: Number, default: 0, min: 0, max: 100 },
-    wastagePercent: { type: Number, default: 0, min: 0, max: 100 },
-
     // Calculated dimensions
     innerArea: { type: Number, default: 0 },
     innerDiameter: { type: Number, default: 0 },
     outerArea: { type: Number, default: 0 },
     outerDiameter: { type: Number, default: 0 },
-    sheathWeight: { type: Number, default: 0 },
+
+    thickness: { type: Number, default: 0, min: 0 },
+    freshSheathDensity: { type: Number, default: 0 },
+    freshSheathPercent: { type: Number, default: 100, min: 0, max: 100 },
+    freshSheathWeight: { type: Number, default: 0 },
+    reprocessSheathDensity: { type: Number, default: 0 },
+    reprocessSheathPercent: { type: Number, default: 0, min: 0, max: 100 },
+    reprocessSheathWeight: { type: Number, default: 0 },
+    wastageSheathPercent: { type: Number, default: 0, min: 0, max: 100 },
 
     // Sheath length (can be different from cable length)
     sheathLength: { type: Number, default: 0 },

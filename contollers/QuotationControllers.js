@@ -76,56 +76,9 @@ const transformCoreData = (frontendCore, coreNumber, quotationId = null) => {
 
 export const createQuotation = async (req, res) => {
     try {
-        const { cores: frontendCores, sheathGroups: frontendSheaths, ...quotationData } = req.body;
-
-        // Create Core documents first if provided
-        let coreIds = [];
-        if (frontendCores && Array.isArray(frontendCores) && frontendCores.length > 0) {
-            const corePromises = frontendCores.map((frontendCore, index) => {
-                const coreData = transformCoreData(frontendCore, index + 1);
-                return Core.create(coreData);
-            });
-            const createdCores = await Promise.all(corePromises);
-            coreIds = createdCores.map(core => core._id);
-        }
-
-        // Create Sheath documents if provided
-        let sheathIds = [];
-        if (frontendSheaths && Array.isArray(frontendSheaths) && frontendSheaths.length > 0) {
-            const sheathPromises = frontendSheaths.map((frontendSheath, index) => {
-                const sheathData = transformSheathData(frontendSheath, index + 1);
-                return Sheath.create(sheathData);
-            });
-            const createdSheaths = await Promise.all(sheathPromises);
-            sheathIds = createdSheaths.map(sheath => sheath._id);
-        }
-
         // Create quotation with core and sheath IDs
-        const quotation = await Quotation.create({
-            ...quotationData,
-            cores: coreIds,
-            sheathGroups: sheathIds
-        });
+        const quotation = await Quotation.create(req.body);
 
-        // Update cores with quotationId
-        if (coreIds.length > 0) {
-            await Core.updateMany(
-                { _id: { $in: coreIds } },
-                { $set: { quotationId: quotation._id } }
-            );
-        }
-
-        // Update sheaths with quotationId
-        if (sheathIds.length > 0) {
-            await Sheath.updateMany(
-                { _id: { $in: sheathIds } },
-                { $set: { quotationId: quotation._id } }
-            );
-        }
-
-        await quotation.populate('customerId', 'companyName address contacts');
-        await quotation.populate('cores');
-        await quotation.populate('sheathGroups');
         res.status(201).json({ success: true, message: 'Quotation created', data: quotation });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
@@ -161,8 +114,36 @@ export const getQuotationById = async (req, res) => {
     try {
         const quotation = await Quotation.findById(req.params.id)
             .populate('customerId', 'companyName address contacts')
-            .populate('cores')
-            .populate('sheathGroups');
+            .populate({
+                path: 'cores',
+                populate: {
+                    path: 'processes',
+                    model: 'ProcessEntry',
+                    populate: {
+                        path: 'processId',
+                        model: 'Process'
+                    }
+                }
+            })
+            .populate({
+                path: 'sheathGroups',
+                populate: {
+                    path: 'processes',
+                    model: 'ProcessEntry',
+                    populate: {
+                        path: 'processId',
+                        model: 'Process'
+                    }
+                }
+            })
+            .populate({
+                path: 'quoteProcesses',
+                model: 'ProcessEntry',
+                populate: {
+                    path: 'processId',
+                    model: 'Process'
+                }
+            });
         if (!quotation) return res.status(404).json({ success: false, message: 'Quotation not found' });
         res.json({ success: true, data: quotation });
     } catch (err) {
@@ -178,62 +159,42 @@ export const updateQuotation = async (req, res) => {
         const quotation = await Quotation.findById(req.params.id);
         if (!quotation) return res.status(404).json({ success: false, message: 'Quotation not found' });
 
-        // Handle core updates
-        let coreIds = [];
-        if (frontendCores && Array.isArray(frontendCores)) {
-            // Delete old cores
-            if (quotation.cores && quotation.cores.length > 0) {
-                await Core.deleteMany({ _id: { $in: quotation.cores } });
-            }
-
-            // Create new cores
-            if (frontendCores.length > 0) {
-                const corePromises = frontendCores.map((frontendCore, index) => {
-                    const coreData = transformCoreData(frontendCore, index + 1, quotation._id);
-                    return Core.create(coreData);
-                });
-                const createdCores = await Promise.all(corePromises);
-                coreIds = createdCores.map(core => core._id);
-            }
-        } else {
-            // Keep existing cores if not provided
-            coreIds = quotation.cores;
-        }
-
-        // Handle sheath updates
-        let sheathIds = [];
-        if (frontendSheaths && Array.isArray(frontendSheaths)) {
-            // Delete old sheaths
-            if (quotation.sheathGroups && quotation.sheathGroups.length > 0) {
-                await Sheath.deleteMany({ _id: { $in: quotation.sheathGroups } });
-            }
-
-            // Create new sheaths
-            if (frontendSheaths.length > 0) {
-                const sheathPromises = frontendSheaths.map((frontendSheath, index) => {
-                    const sheathData = transformSheathData(frontendSheath, index + 1, quotation._id);
-                    return Sheath.create(sheathData);
-                });
-                const createdSheaths = await Promise.all(sheathPromises);
-                sheathIds = createdSheaths.map(sheath => sheath._id);
-            }
-        } else {
-            // Keep existing sheaths if not provided
-            sheathIds = quotation.sheathGroups;
-        }
-
-        // Update quotation properties
-        Object.assign(quotation, quotationData);
-        quotation.cores = coreIds;
-        quotation.sheathGroups = sheathIds;
 
         // Save
         await quotation.save();
 
         // Populate after save
         await quotation.populate('customerId', 'companyName address contacts');
-        await quotation.populate('cores');
-        await quotation.populate('sheathGroups');
+        await quotation.populate({
+            path: 'cores',
+            populate: {
+                path: 'processes',
+                model: 'ProcessEntry',
+                populate: {
+                    path: 'processId',
+                    model: 'Process'
+                }
+            }
+        });
+        await quotation.populate({
+            path: 'sheathGroups',
+            populate: {
+                path: 'processes',
+                model: 'ProcessEntry',
+                populate: {
+                    path: 'processId',
+                    model: 'Process'
+                }
+            }
+        });
+        await quotation.populate({
+            path: 'quoteProcesses',
+            model: 'ProcessEntry',
+            populate: {
+                path: 'processId',
+                model: 'Process'
+            }
+        });
 
         res.json({ success: true, message: 'Quotation updated', data: quotation });
     } catch (err) {
@@ -299,6 +260,16 @@ export const addCoreToQuotation = async (req, res) => {
         quotation.cores.push(newCore._id);
         await quotation.save();
 
+        // Populate processes before returning
+        await newCore.populate({
+            path: 'processes',
+            model: 'ProcessEntry',
+            populate: {
+                path: 'processId',
+                model: 'Process'
+            }
+        });
+
         // Return the created core
         res.status(201).json({ success: true, message: 'Core added', data: newCore });
     } catch (err) {
@@ -323,6 +294,16 @@ export const updateCoreInQuotation = async (req, res) => {
         console.log(frontendCore);
         Object.assign(core, frontendCore);
         await core.save();
+
+        // Populate processes before returning
+        await core.populate({
+            path: 'processes',
+            model: 'ProcessEntry',
+            populate: {
+                path: 'processId',
+                model: 'Process'
+            }
+        });
 
         res.json({ success: true, message: 'Core updated', data: core });
     } catch (err) {
@@ -423,6 +404,16 @@ export const addSheathToQuotation = async (req, res) => {
         quotation.sheathGroups.push(newSheath._id);
         await quotation.save();
 
+        // Populate processes before returning
+        await newSheath.populate({
+            path: 'processes',
+            model: 'ProcessEntry',
+            populate: {
+                path: 'processId',
+                model: 'Process'
+            }
+        });
+
         // Return the created sheath
         res.status(201).json({ success: true, message: 'Sheath added', data: newSheath });
     } catch (err) {
@@ -446,6 +437,16 @@ export const updateSheathInQuotation = async (req, res) => {
         const sheathData = transformSheathData(frontendSheath, sheath.sheathNumber, quotation._id);
         Object.assign(sheath, sheathData);
         await sheath.save();
+
+        // Populate processes before returning
+        await sheath.populate({
+            path: 'processes',
+            model: 'ProcessEntry',
+            populate: {
+                path: 'processId',
+                model: 'Process'
+            }
+        });
 
         res.json({ success: true, message: 'Sheath updated', data: sheath });
     } catch (err) {
