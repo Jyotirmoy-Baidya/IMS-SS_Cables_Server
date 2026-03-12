@@ -30,7 +30,11 @@ const getAllRawMaterials = async (req, res) => {
     const { category, isActive, search, lowStock } = req.query;
 
     const filter = {};
-    if (category) filter.category = category;
+    // Handle multiple categories (comma-separated)
+    if (category) {
+      const categories = category.split(',').map(c => c.trim());
+      filter.category = categories.length > 1 ? { $in: categories } : categories[0];
+    }
     if (isActive !== undefined) filter.isActive = isActive === 'true';
     if (search) {
       filter.$or = [
