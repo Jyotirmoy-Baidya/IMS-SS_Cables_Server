@@ -359,6 +359,35 @@ const addReprocess = async (req, res) => {
   }
 };
 
+// Get raw materials by type ID
+const getMaterialsByType = async (req, res) => {
+  try {
+    const { typeId } = req.params;
+
+    if (!typeId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Type ID is required'
+      });
+    }
+
+    const materials = await RawMaterial.find({
+      materialTypeId: typeId,
+      isActive: true
+    })
+      .populate('materialTypeId')
+      .populate('preferredSuppliers')
+      .sort({ name: 1 });
+
+    res.status(200).json({
+      success: true,
+      data: materials
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 export {
   addRawMaterial,
   getAllRawMaterials,
@@ -369,5 +398,6 @@ export {
   recalculateInventory,
   consumeMaterial,
   getInventorySummary,
-  addReprocess
+  addReprocess,
+  getMaterialsByType
 };

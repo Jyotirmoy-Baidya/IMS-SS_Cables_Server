@@ -9,7 +9,8 @@ import {
   recalculateInventory,
   consumeMaterial,
   getInventorySummary,
-  addReprocess
+  addReprocess,
+  getMaterialsByType
 } from '../contollers/RawMaterialControllers.js';
 
 const router = express.Router();
@@ -18,6 +19,7 @@ const router = express.Router();
 router.post('/add-material', addRawMaterial);
 router.get('/get-all-materials', getAllRawMaterials);
 router.get('/get-one-material/:id', getOneRawMaterial);
+router.get('/get-by-type/:typeId', getMaterialsByType);
 router.post('/get-by-ids', getByIds);
 router.put('/update-material/:id', updateRawMaterial);
 router.delete('/delete-material/:id', deleteRawMaterial);

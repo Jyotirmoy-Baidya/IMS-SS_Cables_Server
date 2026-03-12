@@ -4,35 +4,32 @@ import Sheath from '../models/SheathModel.js';
 
 // Helper function to transform frontend core data to Core model format
 const transformCoreData = (frontendCore, coreNumber, quotationId = null) => {
-    return {
-        name: frontendCore.name || `Core ${coreNumber}`,
-        coreNumber,
-        quotationId,
-        coreLength: frontendCore.coreLength || 0,
+    // Check if conductor is already formatted (sent from new frontend) or needs transformation
+    const conductorData = frontendCore.conductor ? frontendCore.conductor : {
+        materialTypeId: frontendCore.materialTypeId,
+        materialTypeName: frontendCore.materialTypeName || frontendCore.selectedRod?.materialTypeName || '',
+        materialId: frontendCore.materialId || frontendCore.selectedRod?._id,
 
-        conductor: {
-            materialTypeId: frontendCore.materialTypeId,
-            materialTypeName: frontendCore.materialTypeName || frontendCore.selectedRod?.materialTypeName || '',
-            materialId: frontendCore.materialId || frontendCore.selectedRod?._id,
+        selectedRod: frontendCore.selectedRod ? {
+            rodId: frontendCore.selectedRod._id,
+            rodName: frontendCore.selectedRod.name || '',
+            diameter: frontendCore.selectedRod.specifications?.dimensionValue || 0,
+            density: frontendCore.materialDensity || 8.96
+        } : undefined,
 
-            selectedRod: frontendCore.selectedRod ? {
-                rodId: frontendCore.selectedRod._id,
-                rodName: frontendCore.selectedRod.name || '',
-                diameter: frontendCore.selectedRod.specifications?.dimensionValue || 0,
-                density: frontendCore.materialDensity || 8.96
-            } : undefined,
+        totalCoreArea: frontendCore.totalCoreArea || 0,
+        wireCount: frontendCore.wireCount || 1,
+        wireDiameter: 0,
+        conductorDiameter: 0,
+        drawingLength: 0,
+        materialWeight: 0,
+        wastagePercent: frontendCore.wastagePercent || 0,
+        hasAnnealing: frontendCore.hasAnnealing || false
+    };
 
-            totalCoreArea: frontendCore.totalCoreArea || 0,
-            wireCount: frontendCore.wireCount || 1,
-            wireDiameter: 0, // Will be calculated in Core model pre-save
-            conductorDiameter: 0, // Will be calculated
-            drawingLength: 0, // Will be calculated
-            materialWeight: 0, // Will be calculated
-            wastagePercent: frontendCore.wastagePercent || 0,
-            hasAnnealing: frontendCore.hasAnnealing || false
-        },
-
-        insulation: frontendCore.hasInsulation !== false && frontendCore.insulation?.materialTypeId ? {
+    // Check if insulation is already formatted or needs transformation
+    const insulationData = frontendCore.insulation && frontendCore.insulation.materialTypeId ? frontendCore.insulation :
+        (frontendCore.hasInsulation !== false && frontendCore.insulation?.materialTypeId ? {
             materialTypeId: frontendCore.insulation.materialTypeId,
             materialTypeName: frontendCore.insulation.materialTypeName || '',
             materialId: frontendCore.insulation.materialId,
@@ -43,22 +40,32 @@ const transformCoreData = (frontendCore, coreNumber, quotationId = null) => {
             freshPercent: frontendCore.insulation.freshPercent || 100,
             reprocessPercent: frontendCore.insulation.reprocessPercent || 0,
             wastagePercent: frontendCore.insulation.wastagePercent || 0,
-            insulatedDiameter: 0, // Will be calculated
-            insulationWeight: 0 // Will be calculated
-        } : undefined,
+            insulatedDiameter: 0,
+            insulatedArea: 0,
+            insulationWeight: 0
+        } : undefined);
+
+    return {
+        name: frontendCore.name || `Core ${coreNumber}`,
+        coreNumber,
+        quotationId,
+        coreLength: frontendCore.coreLength || 0,
+
+        conductor: conductorData,
+        insulation: insulationData,
 
         processes: (frontendCore.processes || []).map(p => ({
             ...p,
             output: p.output ? {
                 ...p.output,
                 outputType: (p.output.outputType || '').toLowerCase() === 'intermediateproduct' ? 'intermediate' :
-                           (p.output.outputType || 'none').toLowerCase()
+                    (p.output.outputType || 'none').toLowerCase()
             } : { outputType: 'none' }
         })),
         materialRequired: frontendCore.materialRequired || [],
 
-        costs: {
-            totalMaterialCost: 0, // Will be calculated
+        costs: frontendCore.costs || {
+            totalMaterialCost: 0,
             totalProcessCost: 0,
             grandTotal: 0
         },
@@ -313,7 +320,8 @@ export const updateCoreInQuotation = async (req, res) => {
 
         // Update core with frontend data
         const coreData = transformCoreData(frontendCore, core.coreNumber, quotation._id);
-        Object.assign(core, coreData);
+        console.log(frontendCore);
+        Object.assign(core, frontendCore);
         await core.save();
 
         res.json({ success: true, message: 'Core updated', data: core });

@@ -36,11 +36,11 @@ export const createCore = async (req, res) => {
         const materialIds = [];
 
         if (coreData.conductor?.materialId) materialIds.push(coreData.conductor.materialId);
-        if (coreData.insulation?.materialId) materialIds.push(coreData.insulation.materialId);
+        if (coreData.insulation?.freshMaterialId) materialIds.push(coreData.insulation.freshMaterialId);
         if (coreData.insulation?.reprocessMaterialId) materialIds.push(coreData.insulation.reprocessMaterialId);
 
         const materials = await RawMaterial.find({ _id: { $in: materialIds } })
-            .select('_id name inventory reprocessInventory');
+            .select('_id name inventory reprocessInventory specifications');
 
         const pricingMap = {};
         materials.forEach(mat => {
@@ -125,8 +125,9 @@ export const createCore = async (req, res) => {
         await core.populate([
             { path: 'conductor.materialTypeId', select: 'name category' },
             { path: 'conductor.materialId', select: 'name materialCode' },
-            { path: 'insulation.materialTypeId', select: 'name category' },
-            { path: 'insulation.materialId', select: 'name materialCode' },
+            { path: 'insulation.freshMaterialTypeId', select: 'name category' },
+            { path: 'insulation.freshMaterialId', select: 'name materialCode' },
+            { path: 'insulation.reprocessMaterialTypeId', select: 'name category' },
             { path: 'insulation.reprocessMaterialId', select: 'name materialCode' }
         ]);
 
@@ -152,8 +153,9 @@ export const getAllCores = async (req, res) => {
         const cores = await Core.find(filter)
             .populate('conductor.materialTypeId', 'name category')
             .populate('conductor.materialId', 'name materialCode')
-            .populate('insulation.materialTypeId', 'name category')
-            .populate('insulation.materialId', 'name materialCode')
+            .populate('insulation.freshMaterialTypeId', 'name category')
+            .populate('insulation.freshMaterialId', 'name materialCode')
+            .populate('insulation.reprocessMaterialTypeId', 'name category')
             .populate('insulation.reprocessMaterialId', 'name materialCode')
             .sort({ coreNumber: 1, createdAt: -1 });
 
@@ -169,8 +171,9 @@ export const getCoreById = async (req, res) => {
         const core = await Core.findById(req.params.id)
             .populate('conductor.materialTypeId', 'name category')
             .populate('conductor.materialId', 'name materialCode inventory')
-            .populate('insulation.materialTypeId', 'name category')
-            .populate('insulation.materialId', 'name materialCode inventory')
+            .populate('insulation.freshMaterialTypeId', 'name category')
+            .populate('insulation.freshMaterialId', 'name materialCode inventory')
+            .populate('insulation.reprocessMaterialTypeId', 'name category')
             .populate('insulation.reprocessMaterialId', 'name materialCode reprocessInventory');
 
         if (!core) {
@@ -190,14 +193,14 @@ export const updateCore = async (req, res) => {
 
         // Fetch material pricing for cost snapshot
         const materialIds = [];
-
+        console.log(coreData);
         if (coreData.conductor?.materialId) materialIds.push(coreData.conductor.materialId);
-        if (coreData.insulation?.materialId) materialIds.push(coreData.insulation.materialId);
+        if (coreData.insulation?.freshMaterialId) materialIds.push(coreData.insulation.freshMaterialId);
         if (coreData.insulation?.reprocessMaterialId) materialIds.push(coreData.insulation.reprocessMaterialId);
 
         if (materialIds.length > 0) {
             const materials = await RawMaterial.find({ _id: { $in: materialIds } })
-                .select('_id name inventory reprocessInventory');
+                .select('_id name inventory reprocessInventory specifications');
 
             const pricingMap = {};
             materials.forEach(mat => {
@@ -276,15 +279,19 @@ export const updateCore = async (req, res) => {
             grandTotal: totalMaterialCost + totalProcessCost
         };
 
+        // Use $set to ensure nested objects are properly updated
+        const updateData = { $set: coreData };
+        console.log(coreData);
         const core = await Core.findByIdAndUpdate(
             req.params.id,
-            coreData,
+            updateData,
             { new: true, runValidators: true }
         ).populate([
             { path: 'conductor.materialTypeId', select: 'name category' },
             { path: 'conductor.materialId', select: 'name materialCode' },
-            { path: 'insulation.materialTypeId', select: 'name category' },
-            { path: 'insulation.materialId', select: 'name materialCode' },
+            { path: 'insulation.freshMaterialTypeId', select: 'name category' },
+            { path: 'insulation.freshMaterialId', select: 'name materialCode' },
+            { path: 'insulation.reprocessMaterialTypeId', select: 'name category' },
             { path: 'insulation.reprocessMaterialId', select: 'name materialCode' }
         ]);
 
