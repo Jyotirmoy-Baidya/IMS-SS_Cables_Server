@@ -19,6 +19,7 @@ import employeeRoutes from "./routes/EmployeeRoutes.js"
 import intermediateProductRoutes from "./routes/IntermediateProductRoutes.js"
 import coreRoutes from "./routes/CoreRoutes.js"
 import quotePriceRoutes from "./routes/QuotePriceRoutes.js"
+import processEntryRoutes from "./routes/ProcessEntryRoutes.js"
 const app = express()
 
 app.use(
@@ -54,5 +55,6 @@ app.use("/api/employee", employeeRoutes);
 app.use("/api/intermediate-product", intermediateProductRoutes);
 app.use("/api/core", coreRoutes);
 app.use("/api/quote-price", quotePriceRoutes);
+app.use("/api/process-entry", processEntryRoutes);
 
 export default app

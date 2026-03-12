@@ -11,16 +11,6 @@ const ProcessEntrySchema = new mongoose.Schema({
 
     // Cost information (snapshot at time of addition)
     processCost: { type: Number, default: 0 },
-    costFormula: { type: String, default: '' },
-
-    // Variables used in calculation
-    variables: [{
-        name: String,
-        label: String,
-        value: Number,
-        unit: String,
-        source: String
-    }],
 
     // Calculated output (generated when saved)
     output: {
@@ -34,10 +24,6 @@ const ProcessEntrySchema = new mongoose.Schema({
         calculatedSpecification: { type: String, default: '' },
         unit: { type: String, default: 'm' },
 
-        // Templates for reference
-        quantityFormula: { type: String, default: '' },
-        itemNameTemplate: { type: String, default: '' },
-        specificationTemplate: { type: String, default: '' }
     }
 }, { _id: true });
 
