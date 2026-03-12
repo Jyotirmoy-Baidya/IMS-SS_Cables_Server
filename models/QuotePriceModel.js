@@ -54,11 +54,39 @@ const quotePriceSchema = new Schema(
             type: Number,
             required: true,
         },
+
+        // 🔢 Version/Revision tracking
+        version: {
+            type: Number,
+            default: 1,
+        },
+
+        // ✅ Is this the final/latest quote price
+        isFinal: {
+            type: Boolean,
+            default: false,
+        },
+
+        // 📝 Notes
+        notes: {
+            type: String,
+            default: '',
+        },
+
+        // ⚡ Status
+        isActive: {
+            type: Boolean,
+            default: true,
+        },
     },
     {
         timestamps: true,
     }
 );
+
+// Index for fast queries
+quotePriceSchema.index({ quotation: 1, createdAt: -1 });
+quotePriceSchema.index({ quotation: 1, isFinal: 1 });
 
 export default mongoose.models.QuotePrice ||
     mongoose.model("QuotePrice", quotePriceSchema);

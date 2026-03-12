@@ -1,14 +1,20 @@
 import express from "express";
-import { createQuotePrice, deleteQuotePrice, getAllQuotePrices, getByQuotationId, getQuotePriceById, updateQuotePrice } from "../contollers/QuotePriceController.js";
-
+import {
+    createQuotePriceModel,
+    getAllQuotePriceModels,
+    getQuotePriceModelById,
+    getByQuotationId,
+    updateQuotePriceModel,
+    deleteQuotePriceModel,
+} from "../contollers/QuotePriceController.js";
 
 const router = express.Router();
 
-router.post("/", createQuotePrice);
-router.get("/", getAllQuotePrices);
-router.get("/:id", getQuotePriceById);
+router.post("/", createQuotePriceModel);
+router.get("/", getAllQuotePriceModels);
+router.get("/:id", getQuotePriceModelById);
 router.get("/quotation/:quotationId", getByQuotationId);
-router.put("/:id", updateQuotePrice);
-router.delete("/:id", deleteQuotePrice);
+router.put("/:id", updateQuotePriceModel);
+router.delete("/:id", deleteQuotePriceModel);
 
 export default router;

@@ -3,7 +3,7 @@ import QuotePriceModel from "../models/QuotePriceModel.js";
 
 
 // 🧮 Helper — Calculate price fields
-const calculateQuotePrice = (data) => {
+const calculateQuotePriceModel = (data) => {
     let baseAmount = data.quoteBaseAmount;
     let profitAmount = 0;
     let afterProfit = baseAmount;
@@ -40,13 +40,31 @@ const calculateQuotePrice = (data) => {
 /* ========================================================= */
 /* 🟢 CREATE QUOTE PRICE */
 /* ========================================================= */
-export const createQuotePrice = async (req, res) => {
+export const createQuotePriceModel = async (req, res) => {
     try {
-        const calc = calculateQuotePrice(req.body);
+        const { quotation } = req.body;
 
-        const quotePrice = await QuotePrice.create({
+        // Mark all previous quote prices for this quotation as not final
+        await QuotePriceModel.updateMany(
+            { quotation, isFinal: true },
+            { isFinal: false }
+        );
+
+        // Get the latest version number
+        const latestQuotePriceModel = await QuotePriceModel.findOne({ quotation })
+            .sort({ version: -1 })
+            .limit(1);
+
+        const nextVersion = latestQuotePriceModel ? latestQuotePriceModel.version + 1 : 1;
+
+        const calc = calculateQuotePriceModel(req.body);
+
+        // Create new quote price with isFinal: true
+        const quotePrice = await QuotePriceModel.create({
             ...req.body,
             ...calc,
+            version: nextVersion,
+            isFinal: true,
         });
 
         res.status(201).json({
@@ -63,7 +81,7 @@ export const createQuotePrice = async (req, res) => {
 /* ========================================================= */
 /* 🔵 GET ALL */
 /* ========================================================= */
-export const getAllQuotePrices = async (req, res) => {
+export const getAllQuotePriceModels = async (req, res) => {
     try {
         const data = await QuotePriceModel.find()
             .populate("quotation")
@@ -84,14 +102,14 @@ export const getAllQuotePrices = async (req, res) => {
 /* ========================================================= */
 /* 🟡 GET BY ID */
 /* ========================================================= */
-export const getQuotePriceById = async (req, res) => {
+export const getQuotePriceModelById = async (req, res) => {
     try {
-        const data = await QuotePrice.findById(req.params.id)
+        const data = await QuotePriceModel.findById(req.params.id)
             .populate("quotation");
 
         if (!data) {
             return res.status(404).json({
-                message: "QuotePrice not found",
+                message: "QuotePriceModel not found",
             });
         }
 
@@ -111,7 +129,7 @@ export const getQuotePriceById = async (req, res) => {
 /* ========================================================= */
 export const getByQuotationId = async (req, res) => {
     try {
-        const data = await QuotePrice.find({
+        const data = await QuotePriceModel.find({
             quotation: req.params.quotationId,
         }).populate("quotation");
 
@@ -129,11 +147,11 @@ export const getByQuotationId = async (req, res) => {
 /* ========================================================= */
 /* 🟠 UPDATE */
 /* ========================================================= */
-export const updateQuotePrice = async (req, res) => {
+export const updateQuotePriceModel = async (req, res) => {
     try {
-        const calc = calculateQuotePrice(req.body);
+        const calc = calculateQuotePriceModel(req.body);
 
-        const updated = await QuotePrice.findByIdAndUpdate(
+        const updated = await QuotePriceModel.findByIdAndUpdate(
             req.params.id,
             { ...req.body, ...calc },
             { new: true, runValidators: true }
@@ -141,7 +159,7 @@ export const updateQuotePrice = async (req, res) => {
 
         if (!updated) {
             return res.status(404).json({
-                message: "QuotePrice not found",
+                message: "QuotePriceModel not found",
             });
         }
 
@@ -159,21 +177,21 @@ export const updateQuotePrice = async (req, res) => {
 /* ========================================================= */
 /* 🔴 DELETE */
 /* ========================================================= */
-export const deleteQuotePrice = async (req, res) => {
+export const deleteQuotePriceModel = async (req, res) => {
     try {
-        const deleted = await QuotePrice.findByIdAndDelete(
+        const deleted = await QuotePriceModel.findByIdAndDelete(
             req.params.id
         );
 
         if (!deleted) {
             return res.status(404).json({
-                message: "QuotePrice not found",
+                message: "QuotePriceModel not found",
             });
         }
 
         res.json({
             success: true,
-            message: "QuotePrice deleted successfully",
+            message: "QuotePriceModel deleted successfully",
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

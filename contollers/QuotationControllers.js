@@ -50,7 +50,7 @@ const transformCoreData = (frontendCore, coreNumber, quotationId = null) => {
         coreNumber,
         quotationId,
         coreLength: frontendCore.coreLength || 0,
-
+        coreOuterAreaWithInsulation: frontendCore.coreOuterAreaWithInsulation,
         conductor: conductorData,
         insulation: insulationData,
 
@@ -209,7 +209,38 @@ export const patchQuotation = async (req, res) => {
             req.params.id,
             { $set: req.body },
             { new: true }
-        ).populate('customerId', 'companyName address contacts');
+        )
+            .populate('customerId', 'companyName address contacts')
+            .populate({
+                path: 'cores',
+                populate: {
+                    path: 'processes',
+                    model: 'ProcessEntry',
+                    populate: {
+                        path: 'processId',
+                        model: 'Process'
+                    }
+                }
+            })
+            .populate({
+                path: 'sheathGroups',
+                populate: {
+                    path: 'processes',
+                    model: 'ProcessEntry',
+                    populate: {
+                        path: 'processId',
+                        model: 'Process'
+                    }
+                }
+            })
+            .populate({
+                path: 'quoteProcesses',
+                model: 'ProcessEntry',
+                populate: {
+                    path: 'processId',
+                    model: 'Process'
+                }
+            });
         if (!quotation) return res.status(404).json({ success: false, message: 'Quotation not found' });
         res.json({ success: true, data: quotation });
     } catch (err) {
@@ -289,10 +320,9 @@ export const updateCoreInQuotation = async (req, res) => {
         const core = await Core.findById(coreId);
         if (!core) return res.status(404).json({ success: false, message: 'Core not found' });
 
-        // Update core with frontend data
+        // Transform and update core with frontend data
         const coreData = transformCoreData(frontendCore, core.coreNumber, quotation._id);
-        console.log(frontendCore);
-        Object.assign(core, frontendCore);
+        Object.assign(core, coreData);
         await core.save();
 
         // Populate processes before returning
@@ -350,37 +380,46 @@ const transformSheathData = (frontendSheath, sheathNumber, quotationId = null) =
         name: frontendSheath.name || `Sheath ${sheathNumber}`,
         sheathNumber,
         quotationId,
-        sheathLength: frontendSheath.sheathLength || 0,
+        sheathLength: frontendSheath.sheathLength || null,
 
         coreIds: frontendSheath.coreIds || [],
         sheathIds: frontendSheath.sheathIds || [],
 
-        materialTypeId: frontendSheath.materialTypeId,
-        materialTypeName: frontendSheath.materialTypeName || '',
-        materialId: frontendSheath.materialId,
+        // Fresh material fields
+        freshMaterialTypeId: frontendSheath.freshMaterialTypeId,
+        freshMaterialId: frontendSheath.freshMaterialId,
+
+        // Reprocess material fields
+        reprocessMaterialTypeId: frontendSheath.reprocessMaterialTypeId,
         reprocessMaterialId: frontendSheath.reprocessMaterialId,
 
+        // Dimensions and material properties
         thickness: frontendSheath.thickness || 0,
-        density: frontendSheath.density || 1.4,
-        freshPercent: frontendSheath.freshPercent || 100,
-        reprocessPercent: frontendSheath.reprocessPercent || 0,
-        wastagePercent: frontendSheath.wastagePercent || 0,
+        freshSheathDensity: frontendSheath.freshSheathDensity || 1.4,
+        freshSheathPercent: frontendSheath.freshSheathPercent || 100,
+        freshSheathWeight: frontendSheath.freshSheathWeight || 0,
+        reprocessSheathDensity: frontendSheath.reprocessSheathDensity || 1.4,
+        reprocessSheathPercent: frontendSheath.reprocessSheathPercent || 0,
+        reprocessSheathWeight: frontendSheath.reprocessSheathWeight || 0,
+        wastageSheathPercent: frontendSheath.wastageSheathPercent || 0,
 
-        innerArea: 0, // Will be calculated in Sheath model pre-save
-        innerDiameter: 0,
-        outerArea: 0,
-        outerDiameter: 0,
-        sheathWeight: 0,
+        innerArea: frontendSheath.innerArea || 0, // Calculated in frontend
+        innerDiameter: frontendSheath.innerDiameter || 0,
+        outerArea: frontendSheath.outerArea || 0,
+        outerDiameter: frontendSheath.outerDiameter || 0,
 
-        processes: frontendSheath.processes || [],
+        processes: (frontendSheath.processes || []).map(p =>
+            typeof p === 'string' ? p : p._id
+        ),
         materialRequired: frontendSheath.materialRequired || [],
 
-        costs: {
+        costs: frontendSheath.costs || {
             totalMaterialCost: 0,
             totalProcessCost: 0,
             grandTotal: 0
         },
 
+        notes: frontendSheath.notes || '',
         isActive: true
     };
 };
