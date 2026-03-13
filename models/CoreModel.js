@@ -50,6 +50,7 @@ const CoreSchema = new mongoose.Schema({
         totalCoreArea: { type: Number, default: 0 },
         wireCount: { type: Number, default: 1, min: 1 },
         wireDiameter: { type: Number, default: 0 },
+        areaPerWire: { type: Number, default: 0 },
         conductorDiameter: { type: Number, default: 0 },
         drawingLength: { type: Number, default: 0 },
         materialWeight: { type: Number, default: 0 },

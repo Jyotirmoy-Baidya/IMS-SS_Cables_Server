@@ -20,7 +20,7 @@ const RawMaterialSchema = new mongoose.Schema({
   // Material properties
   category: {
     type: String,
-    enum: ['metal', 'plastic', 'insulation', 'other'],
+    enum: ['metal', 'plastic', 'insulation', 'alloy', 'other'],
     required: true
   },
   specifications: {
@@ -129,7 +129,7 @@ RawMaterialSchema.index({ category: 1 });
 RawMaterialSchema.index({ name: 1 });
 
 // Auto-generate material code
-RawMaterialSchema.pre('save', async function() {
+RawMaterialSchema.pre('save', async function () {
   if (!this.materialCode) {
     const categoryPrefix = {
       'metal': 'MTL',
@@ -144,7 +144,7 @@ RawMaterialSchema.pre('save', async function() {
 });
 
 // Method to calculate weighted average price
-RawMaterialSchema.methods.calculateWeightedAverage = async function() {
+RawMaterialSchema.methods.calculateWeightedAverage = async function () {
   const RawMaterialLot = mongoose.model('RawMaterialLot');
 
   const lots = await RawMaterialLot.find({
@@ -196,7 +196,7 @@ RawMaterialSchema.methods.calculateWeightedAverage = async function() {
 };
 
 // Method to consume material using LIFO
-RawMaterialSchema.methods.consumeMaterial = async function(quantityToConsume, unit = 'weight') {
+RawMaterialSchema.methods.consumeMaterial = async function (quantityToConsume, unit = 'weight') {
   const RawMaterialLot = mongoose.model('RawMaterialLot');
 
   // Get active lots sorted by purchase date (newest first for LIFO)

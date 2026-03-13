@@ -13,10 +13,10 @@ const SOURCES = [
 
     // Core-specific length
     'coreLength',
+    'areaPerWire',
 
     // Core conductor variables
     'coreMaterialDensity',
-    'coreTotalCoreArea',
     'coreWireCount',
     'coreWastagePercent',
     'coreHasAnnealing',

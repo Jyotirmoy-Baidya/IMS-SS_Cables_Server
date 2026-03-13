@@ -13,7 +13,6 @@ import {
     updateSheathInQuotation,
     deleteSheathFromQuotation,
 } from '../contollers/QuotationControllers.js';
-import { calculateMaterialRequirements } from '../contollers/QuotationMaterialControllers.js';
 import { authenticate, isAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -25,7 +24,6 @@ router.get('/get-one-quotation/:id', authenticate, isAdmin, getQuotationById);
 router.put('/update-quotation/:id', authenticate, isAdmin, updateQuotation);
 router.patch('/patch-quotation/:id', authenticate, isAdmin, patchQuotation);
 router.delete('/delete-quotation/:id', authenticate, isAdmin, deleteQuotation);
-router.post('/calculate-material-requirements', authenticate, isAdmin, calculateMaterialRequirements);
 
 // Core management routes
 router.post('/:id/cores', authenticate, isAdmin, addCoreToQuotation);

@@ -22,12 +22,10 @@ const finishedGoodsSchema = new mongoose.Schema(
         processId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Process',
-            required: true
         },
 
         processName: {
             type: String,
-            required: true
         },
 
         // Total produced quantity

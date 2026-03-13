@@ -20,6 +20,7 @@ const transformCoreData = (frontendCore, coreNumber, quotationId = null) => {
         totalCoreArea: frontendCore.totalCoreArea || 0,
         wireCount: frontendCore.wireCount || 1,
         wireDiameter: 0,
+        areaPerWire: 0,
         conductorDiameter: 0,
         drawingLength: 0,
         materialWeight: 0,
@@ -28,7 +29,7 @@ const transformCoreData = (frontendCore, coreNumber, quotationId = null) => {
     };
 
     // Check if insulation is already formatted or needs transformation
-    const insulationData = frontendCore.insulation && frontendCore.insulation.materialTypeId ? frontendCore.insulation :
+    const insulationData = frontendCore.insulation && frontendCore.insulation.freshMaterialTypeId ? frontendCore.insulation :
         (frontendCore.hasInsulation !== false && frontendCore.insulation?.materialTypeId ? {
             materialTypeId: frontendCore.insulation.materialTypeId,
             materialTypeName: frontendCore.insulation.materialTypeName || '',
@@ -44,6 +45,7 @@ const transformCoreData = (frontendCore, coreNumber, quotationId = null) => {
             insulatedArea: 0,
             insulationWeight: 0
         } : undefined);
+
 
     return {
         name: frontendCore.name || `Core ${coreNumber}`,

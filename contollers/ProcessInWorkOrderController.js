@@ -454,7 +454,7 @@ export const createOutputProduct = async (req, res) => {
     try {
         const { id } = req.params;
         const { itemName, specifications, storageLocation, quantity } = req.body;
-
+        console.log(itemName)
         const process = await ProcessInWorkOrder.findById(id);
         if (!process) {
             return res.status(404).json({ success: false, message: 'Process not found' });
@@ -498,7 +498,7 @@ export const createOutputProduct = async (req, res) => {
         } else if (outputType === 'final') {
             // Create Finished Good
             const finishedGood = await FinishedGoodsModel.create({
-                productName: itemName,
+                itemName: itemName,
                 workOrderId: process.workOrderId,
                 workOrderNumber: process.workOrderNumber,
                 specifications: specifications || '',
@@ -540,7 +540,9 @@ export const createOutputProduct = async (req, res) => {
 export const updateProcessStatus = async (req, res) => {
     try {
         const { id } = req.params;
-        const { status, userId, userName } = req.body;
+        const { status, userName } = req.body;
+
+        const userId = req.user._id;
 
         if (!status) {
             return res.status(400).json({ success: false, message: 'Status is required' });
@@ -569,7 +571,7 @@ export const updateProcessStatus = async (req, res) => {
                 timestamp: new Date(),
                 action: 'status-changed',
                 userId: userId,
-                userName: userName || '',
+                userName: "Jyotirmoy" || '',
                 details: { from: oldStatus, to: status },
                 description: `Status changed from ${oldStatus} to ${status}`
             });

@@ -10,7 +10,7 @@ const RawMaterialTypeSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['metal', 'plastic', 'insulation', 'other'],
+    enum: ['metal', 'plastic', 'insulation', 'alloy', 'other'],
     required: true
   },
   density: {

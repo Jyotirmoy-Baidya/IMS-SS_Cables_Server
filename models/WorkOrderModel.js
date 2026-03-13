@@ -61,6 +61,10 @@ const workOrderSchema = new mongoose.Schema(
                 required: true,
                 min: 0
             },
+            plannedWeightToUse: {
+                type: Number,
+                default: null
+            },
             allocatedLength: {
                 type: Number,
                 default: 0,
@@ -217,5 +221,6 @@ workOrderSchema.pre('validate', async function () {
         this.workOrderNumber = `WO-${String(seq).padStart(5, '0')}`;
     }
 });
+
 
 export default mongoose.model('WorkOrder', workOrderSchema);
