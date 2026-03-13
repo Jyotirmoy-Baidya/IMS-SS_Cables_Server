@@ -3,13 +3,14 @@ import WorkOrder from '../models/WorkOrderModel.js';
 import Quotation from '../models/QuotationModel.js';
 import RawMaterialLot from '../models/RawMaterialLotModel.js';
 import RawMaterial from '../models/RawMaterialModel.js';
+import ProcessInWorkOrder from '../models/ProcessInWorkOrderModel.js';
 
 // Convert quotation to work order
 export const createWorkOrder = async (req, res) => {
     let workOrder = null;
 
     try {
-        const { quoteId, processAssignments, materialRequirements, processCosts, notes } = req.body;
+        const { quoteId, processAssignments, materialRequirements, processCosts, notes, finalQuotePriceId } = req.body;
 
         // Fetch quotation
         const quotation = await Quotation.findById(quoteId);
@@ -21,7 +22,7 @@ export const createWorkOrder = async (req, res) => {
         const materialCostsBreakdown = (materialRequirements || []).map(req => ({
             materialId: req.materialId,
             materialName: req.materialName,
-            quantity: req.totalWeight,
+            quantity: req.weight,
             unit: 'kg',
             pricePerUnit: req.pricePerKg || 0,
             totalCost: req.totalCost || 0
@@ -39,9 +40,9 @@ export const createWorkOrder = async (req, res) => {
             quoteNumber: quotation.quoteNumber,
             customerId: quotation.customerId,
             cableLength: quotation.cableLength,
-            processAssignments,
             notes: notes || '',
             allocatedMaterials: [],
+            finalQuotePriceId: finalQuotePriceId || null,
             materialCosts: {
                 totalCost: totalMaterialCost,
                 breakdown: materialCostsBreakdown
@@ -53,9 +54,11 @@ export const createWorkOrder = async (req, res) => {
             finalCost: {
                 materialCost: totalMaterialCost,
                 processCost: totalProcessCost,
-                profitMargin: quotation.profitMarginPercent || 0,
-                profitAmount: (totalMaterialCost + totalProcessCost) * (quotation.profitMarginPercent / 100),
-                grandTotal: (totalMaterialCost + totalProcessCost) * (1 + quotation.profitMarginPercent / 100)
+            },
+            extra: {
+                extraAllocatedMaterials: [],
+                extraCostBear: 0,
+                miscellaneousCost: 0
             },
             relatedWorkOrders: [] // Empty for now, can be populated later
         });
@@ -66,9 +69,13 @@ export const createWorkOrder = async (req, res) => {
             const allocatedMaterials = [];
 
             for (const requirement of materialRequirements) {
-                const { materialId, totalWeight, materialName } = requirement;
+                const { materialId, weight, materialName, pricePerKg, totalCost } = requirement;
 
-                if (!totalWeight || totalWeight <= 0) continue;
+                if (!weight || weight <= 0) continue;
+
+                // Use price from requirement (already calculated in quotation)
+                const reqPricePerKg = pricePerKg || 0;
+                const reqTotalCost = totalCost || 0;
 
                 // Find available lots for this material (LIFO - latest first)
                 const lots = await RawMaterialLot.find({
@@ -77,7 +84,8 @@ export const createWorkOrder = async (req, res) => {
                     isFullyConsumed: false,
                 }).sort({ purchaseDate: -1 });
 
-                let remainingToAllocate = totalWeight;
+                let remainingToAllocate = weight;
+                let remainingCost = reqTotalCost;
 
                 for (const lot of lots) {
                     if (remainingToAllocate <= 0) break;
@@ -87,9 +95,8 @@ export const createWorkOrder = async (req, res) => {
 
                     const toAllocate = Math.min(available, remainingToAllocate);
 
-                    // Get price from lot
-                    const pricePerKg = lot.pricePerKg || lot.avgPricePerKg || 0;
-                    const costForThis = toAllocate * pricePerKg;
+                    // Calculate proportional cost based on requirement's price
+                    const costForThis = (toAllocate / weight) * reqTotalCost;
 
                     // Update lot allocation
                     lot.allocatedQuantity = lot.allocatedQuantity || { weight: 0, length: 0 };
@@ -104,7 +111,7 @@ export const createWorkOrder = async (req, res) => {
                         lotNumber: lot.lotNumber,
                         allocatedWeight: toAllocate,
                         allocatedLength: 0,
-                        pricePerKg: pricePerKg,
+                        pricePerKg: reqPricePerKg,
                         totalCost: costForThis,
                         allocatedAt: new Date(),
                         isConsumed: false,
@@ -112,6 +119,7 @@ export const createWorkOrder = async (req, res) => {
                     });
 
                     remainingToAllocate -= toAllocate;
+                    remainingCost -= costForThis;
                 }
 
                 if (remainingToAllocate > 0) {
@@ -123,38 +131,60 @@ export const createWorkOrder = async (req, res) => {
             // Update work order with allocated materials
             workOrder.allocatedMaterials = allocatedMaterials;
 
-            // Calculate total material cost
+            // Calculate total material cost from allocated materials
             const totalMaterialCost = allocatedMaterials.reduce((sum, mat) => sum + (mat.totalCost || 0), 0);
 
-            // Update material costs breakdown with actual prices
+            // Update material costs (using costs from requirements)
             workOrder.materialCosts.totalCost = totalMaterialCost;
-            workOrder.materialCosts.breakdown = workOrder.materialCosts.breakdown.map(item => {
-                const allocatedForThis = allocatedMaterials.filter(a => a.materialId.toString() === item.materialId.toString());
-                const avgPrice = allocatedForThis.length > 0
-                    ? allocatedForThis.reduce((sum, a) => sum + (a.pricePerKg || 0), 0) / allocatedForThis.length
-                    : 0;
-                const totalCost = allocatedForThis.reduce((sum, a) => sum + (a.totalCost || 0), 0);
-                return {
-                    ...item,
-                    pricePerUnit: avgPrice,
-                    totalCost: totalCost
-                };
-            });
 
-            // Update final cost
-            const baseTotal = totalMaterialCost + workOrder.processCosts.totalCost;
-            const profitAmount = baseTotal * ((workOrder.finalCost.profitMargin || 0) / 100);
 
             workOrder.finalCost = {
                 materialCost: totalMaterialCost,
                 processCost: workOrder.processCosts.totalCost,
-                profitMargin: workOrder.finalCost.profitMargin,
-                profitAmount: profitAmount,
-                grandTotal: baseTotal + profitAmount
             };
 
             await workOrder.save();
         }
+
+        // Create ProcessInWorkOrder documents for each process assignment
+        const processInWorkOrderDocs = [];
+        for (const assignment of processAssignments) {
+            const processDoc = await ProcessInWorkOrder.create({
+                workOrderId: workOrder._id,
+                workOrderNumber: workOrder.workOrderNumber,
+                processAssignmentId: assignment._id || new mongoose.Types.ObjectId(),
+                processId: assignment.processId,
+                processName: assignment.processName,
+                assignedEmployeeId: assignment.assignedEmployeeId,
+                status: 'pending',
+                progressPercentage: 0,
+                output: {
+                    outputType: assignment.expectedOutput?.outputType || 'none',
+                    calculatedQuantity: assignment.expectedOutput?.calculatedQuantity || 0,
+                    calculatedItemName: assignment.expectedOutput?.calculatedItemName || '',
+                    calculatedSpecification: assignment.expectedOutput?.calculatedSpecification || '',
+                    unit: assignment.expectedOutput?.unit || 'm'
+                },
+                producedOutput: 0,
+                inputs: [],
+                logs: [],
+                notes: '',
+                addReportAfter: assignment.addReportAfter || false,
+                reportUploaded: false,
+                reportReceived: false,
+                canStart: true,
+                blockReason: ''
+            });
+
+            processInWorkOrderDocs.push({
+                processId: processDoc._id,
+                sequence: assignment.sequence || 0
+            });
+        }
+
+        // Update work order with processInWorkOrder references
+        workOrder.processInWorkOrder = processInWorkOrderDocs;
+        await workOrder.save();
 
         // Update quotation with work order reference
         await Quotation.findByIdAndUpdate(quoteId, { workOrderId: workOrder._id });
@@ -163,10 +193,9 @@ export const createWorkOrder = async (req, res) => {
         await workOrder.populate([
             { path: 'customerId', select: 'companyName contacts businessInfo address' },
             { path: 'quoteId', select: 'quoteNumber status finalPrice' },
-            { path: 'processAssignments.processId', select: 'name processType' },
-            { path: 'processAssignments.assignedEmployeeId', select: 'name phoneNumbers' },
             { path: 'allocatedMaterials.materialId', select: 'name category' },
             { path: 'allocatedMaterials.materialLotId', select: 'lotNumber purchaseDate' },
+            { path: 'processInWorkOrder.processId' },
         ]);
 
         res.status(201).json({
@@ -198,8 +227,7 @@ export const getAllWorkOrders = async (req, res) => {
         let workOrders = await WorkOrder.find(filter)
             .populate('customerId', 'companyName contacts businessInfo address')
             .populate('quoteId', 'quoteNumber status finalPrice')
-            .populate('processAssignments.processId', 'name processType')
-            .populate('processAssignments.assignedEmployeeId', 'name phoneNumbers')
+            .populate('processInWorkOrder.processId')
             .sort({ createdAt: -1 });
 
         // Search filter (workOrderNumber, quoteNumber, customer name)
@@ -224,8 +252,7 @@ export const getWorkOrderById = async (req, res) => {
         const workOrder = await WorkOrder.findById(req.params.id)
             .populate('customerId', 'companyName contacts businessInfo address')
             .populate('quoteId')
-            .populate('processAssignments.processId', 'name processType')
-            .populate('processAssignments.assignedEmployeeId', 'name phoneNumbers');
+            .populate('processInWorkOrder.processId');
 
         if (!workOrder) {
             return res.status(404).json({ success: false, message: 'Work order not found' });
@@ -247,8 +274,7 @@ export const updateWorkOrder = async (req, res) => {
         )
             .populate('customerId', 'companyName contacts businessInfo address')
             .populate('quoteId', 'quoteNumber status finalPrice')
-            .populate('processAssignments.processId', 'name processType')
-            .populate('processAssignments.assignedEmployeeId', 'name phoneNumbers');
+            .populate('processInWorkOrder.processId');
 
         if (!workOrder) {
             return res.status(404).json({ success: false, message: 'Work order not found' });
@@ -270,8 +296,7 @@ export const patchWorkOrder = async (req, res) => {
         )
             .populate('customerId', 'companyName contacts businessInfo address')
             .populate('quoteId', 'quoteNumber status finalPrice')
-            .populate('processAssignments.processId', 'name processType')
-            .populate('processAssignments.assignedEmployeeId', 'name phoneNumbers');
+            .populate('processInWorkOrder.processId');
 
         if (!workOrder) {
             return res.status(404).json({ success: false, message: 'Work order not found' });
@@ -313,10 +338,32 @@ export const deleteWorkOrder = async (req, res) => {
             }
         }
 
+        // Deallocate extra materials before deleting
+        if (workOrder.extra?.extraAllocatedMaterials && workOrder.extra.extraAllocatedMaterials.length > 0) {
+            for (const allocated of workOrder.extra.extraAllocatedMaterials) {
+                const lot = await RawMaterialLot.findById(allocated.materialLotId);
+                if (lot) {
+                    lot.allocatedQuantity = lot.allocatedQuantity || { weight: 0, length: 0 };
+                    lot.allocatedQuantity.weight = Math.max(
+                        0,
+                        (lot.allocatedQuantity.weight || 0) - (allocated.allocatedWeight || 0)
+                    );
+                    lot.allocatedQuantity.length = Math.max(
+                        0,
+                        (lot.allocatedQuantity.length || 0) - (allocated.allocatedLength || 0)
+                    );
+                    await lot.save();
+                }
+            }
+        }
+
+        // Delete all ProcessInWorkOrder documents associated with this work order
+        await ProcessInWorkOrder.deleteMany({ workOrderId: req.params.id });
+
         // Now delete the work order
         await WorkOrder.findByIdAndDelete(req.params.id);
 
-        res.json({ success: true, message: 'Work order deleted and materials deallocated successfully' });
+        res.json({ success: true, message: 'Work order deleted, materials deallocated, and processes removed successfully' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -384,7 +431,8 @@ export const approveExtraMaterialRequest = async (req, res) => {
         }).sort({ purchaseDate: -1 });
 
         let remainingToAllocate = request.requestedQuantity.weight || 0;
-        const allocatedMaterials = [];
+        const extraAllocatedMaterials = [];
+        let totalExtraCost = 0;
 
         for (const lot of lots) {
             if (remainingToAllocate <= 0) break;
@@ -401,7 +449,7 @@ export const approveExtraMaterialRequest = async (req, res) => {
             lot.allocatedQuantity.weight = (lot.allocatedQuantity.weight || 0) + toAllocate;
             await lot.save();
 
-            // Add to work order's allocated materials
+            // Add to work order's extra allocated materials
             const allocatedMat = {
                 materialId: request.materialId,
                 materialName: request.materialName,
@@ -412,12 +460,11 @@ export const approveExtraMaterialRequest = async (req, res) => {
                 pricePerKg: pricePerKg,
                 totalCost: costForThis,
                 allocatedAt: new Date(),
-                isConsumed: false,
-                isExtraRequest: true
+                requestId: requestId
             };
 
-            workOrder.allocatedMaterials.push(allocatedMat);
-            allocatedMaterials.push(allocatedMat);
+            extraAllocatedMaterials.push(allocatedMat);
+            totalExtraCost += costForThis;
 
             remainingToAllocate -= toAllocate;
         }
@@ -429,18 +476,23 @@ export const approveExtraMaterialRequest = async (req, res) => {
             });
         }
 
+        // Initialize extra object if it doesn't exist
+        if (!workOrder.extra) {
+            workOrder.extra = {
+                extraAllocatedMaterials: [],
+                extraCostBear: 0,
+                miscellaneousCost: 0
+            };
+        }
+
+        // Add to extra allocated materials
+        workOrder.extra.extraAllocatedMaterials.push(...extraAllocatedMaterials);
+        workOrder.extra.extraCostBear = (workOrder.extra.extraCostBear || 0) + totalExtraCost;
+
         // Update request status
         request.status = 'approved';
         request.approvedBy = approvedBy;
         request.approvedAt = new Date();
-
-        // Update costs
-        const totalExtraCost = allocatedMaterials.reduce((sum, mat) => sum + (mat.totalCost || 0), 0);
-        workOrder.materialCosts.totalCost += totalExtraCost;
-        workOrder.finalCost.materialCost += totalExtraCost;
-        const newBaseTotal = workOrder.finalCost.materialCost + workOrder.finalCost.processCost;
-        workOrder.finalCost.profitAmount = newBaseTotal * (workOrder.finalCost.profitMargin / 100);
-        workOrder.finalCost.grandTotal = newBaseTotal + workOrder.finalCost.profitAmount;
 
         await workOrder.save();
 

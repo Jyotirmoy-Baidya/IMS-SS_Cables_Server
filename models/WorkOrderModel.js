@@ -1,102 +1,5 @@
 import mongoose from 'mongoose';
 
-const processAssignmentSchema = new mongoose.Schema(
-    {
-        processId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Process',
-            required: true,
-        },
-        processName: { type: String, required: true }, // Denormalized
-        processCategory: { type: String, default: '' }, // conductor/insulation/sheathing/general
-
-        assignedEmployeeId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User',
-            required: true,
-        },
-        locationId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Location',
-        },
-        locationName: { type: String, default: '' }, // Denormalized
-        sequence: { type: Number, default: 0 }, // Process sequence/order
-
-        // Cost information (from quotation)
-        processCost: { type: Number, default: 0 }, // Calculated cost from formula
-        costFormula: { type: String, default: '' }, // The formula used
-
-        // Process variables (snapshot from quotation)
-        variables: [{
-            name: String,
-            label: String,
-            value: Number,
-            unit: String,
-            source: String
-        }],
-
-        // Expected output (from quotation process output config)
-        expectedOutput: {
-            outputType: {
-                type: String,
-                enum: ['intermediate', 'final', 'none'],
-                default: 'none'
-            },
-            expectedQuantity: { type: Number, default: 0 },
-            expectedItemName: { type: String, default: '' },
-            expectedSpecification: { type: String, default: '' },
-            unit: { type: String, default: 'm' },
-            quantityFormula: { type: String, default: '' },
-            itemNameTemplate: { type: String, default: '' },
-            specificationTemplate: { type: String, default: '' }
-        },
-
-        // Actual production output
-        actualOutput: {
-            producedQuantity: { type: Number, default: 0 },
-            producedItemName: { type: String, default: '' },
-            producedSpecification: { type: String, default: '' },
-            storageLocation: { type: String, default: '' }, // e.g., "bobbin count 10 in shelf 2"
-            productId: { type: mongoose.Schema.Types.ObjectId, ref: 'IntermediateProduct' }, // If intermediate
-            // Quality metrics
-            qualityGrade: { type: String, enum: ['A', 'B', 'C', 'rejected', ''], default: '' },
-            defectRate: { type: Number, default: 0, min: 0, max: 100 }, // Percentage
-            notes: { type: String, default: '' }
-        },
-
-        // Status tracking
-        addReportAfter: { type: Boolean, default: false },
-        requiresReport: { type: Boolean, default: false }, // Alias for addReportAfter
-        status: {
-            type: String,
-            enum: ['pending', 'in-progress', 'completed', 'on-hold', 'failed'],
-            default: 'pending',
-        },
-        startedAt: { type: Date },
-        completedAt: { type: Date },
-        progressPercentage: { type: Number, default: 0, min: 0, max: 100 },
-
-        // Report tracking
-        reportUploaded: { type: Boolean, default: false },
-        reportUrl: { type: String, default: '' },
-        reportUploadedAt: { type: Date },
-        reportData: { type: mongoose.Schema.Types.Mixed, default: null },
-
-        // Input consumption tracking
-        inputsConsumed: [{
-            inputType: { type: String, enum: ['RawMaterial', 'IntermediateProduct'] },
-            materialId: mongoose.Schema.Types.ObjectId, // RawMaterial or IntermediateProduct
-            materialName: String,
-            quantityConsumed: Number,
-            unit: String,
-            consumedAt: { type: Date, default: Date.now }
-        }],
-
-        notes: { type: String, default: '' },
-    },
-    { _id: true }
-);
-
 const workOrderSchema = new mongoose.Schema(
     {
         workOrderNumber: {
@@ -127,10 +30,18 @@ const workOrderSchema = new mongoose.Schema(
             default: 'pending',
         },
 
-        processAssignments: {
-            type: [processAssignmentSchema],
-            default: [],
-        },
+        // Process in work order tracking
+        processInWorkOrder: [{
+            processId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'ProcessInWorkOrder',
+                required: true
+            },
+            sequence: {
+                type: Number,
+                default: 0
+            }
+        }],
 
         allocatedMaterials: [{
             materialId: {
@@ -202,10 +113,37 @@ const workOrderSchema = new mongoose.Schema(
 
         finalCost: {
             materialCost: { type: Number, default: 0 },
-            processCost: { type: Number, default: 0 },
-            profitMargin: { type: Number, default: 0 },
-            profitAmount: { type: Number, default: 0 },
-            grandTotal: { type: Number, default: 0 }
+            processCost: { type: Number, default: 0 }
+        },
+
+        // Reference to final quote price used for this work order
+        finalQuotePriceId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'QuotePriceModel'
+        },
+
+        // Extra costs and materials
+        extra: {
+            extraAllocatedMaterials: [{
+                materialId: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'RawMaterial'
+                },
+                materialName: String,
+                materialLotId: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'RawMaterialLot'
+                },
+                lotNumber: String,
+                allocatedWeight: { type: Number, default: 0 },
+                allocatedLength: { type: Number, default: 0 },
+                pricePerKg: { type: Number, default: 0 },
+                totalCost: { type: Number, default: 0 },
+                allocatedAt: Date,
+                requestId: mongoose.Schema.Types.ObjectId // Reference to extraMaterialRequests
+            }],
+            extraCostBear: { type: Number, default: 0 },
+            miscellaneousCost: { type: Number, default: 0 }
         },
 
         // Extra material requests during production
