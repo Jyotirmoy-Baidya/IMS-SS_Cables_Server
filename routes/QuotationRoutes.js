@@ -14,25 +14,27 @@ import {
     deleteSheathFromQuotation,
 } from '../contollers/QuotationControllers.js';
 import { calculateMaterialRequirements } from '../contollers/QuotationMaterialControllers.js';
+import { authenticate, isAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-router.post('/create-quotation', createQuotation);
-router.get('/get-all-quotations', getAllQuotations);
-router.get('/get-one-quotation/:id', getQuotationById);
-router.put('/update-quotation/:id', updateQuotation);
-router.patch('/patch-quotation/:id', patchQuotation);
-router.delete('/delete-quotation/:id', deleteQuotation);
-router.post('/calculate-material-requirements', calculateMaterialRequirements);
+// All routes require authentication and admin access
+router.post('/create-quotation', authenticate, isAdmin, createQuotation);
+router.get('/get-all-quotations', authenticate, isAdmin, getAllQuotations);
+router.get('/get-one-quotation/:id', authenticate, isAdmin, getQuotationById);
+router.put('/update-quotation/:id', authenticate, isAdmin, updateQuotation);
+router.patch('/patch-quotation/:id', authenticate, isAdmin, patchQuotation);
+router.delete('/delete-quotation/:id', authenticate, isAdmin, deleteQuotation);
+router.post('/calculate-material-requirements', authenticate, isAdmin, calculateMaterialRequirements);
 
 // Core management routes
-router.post('/:id/cores', addCoreToQuotation);
-router.put('/:id/cores/:coreId', updateCoreInQuotation);
-router.delete('/:id/cores/:coreId', deleteCoreFromQuotation);
+router.post('/:id/cores', authenticate, isAdmin, addCoreToQuotation);
+router.put('/:id/cores/:coreId', authenticate, isAdmin, updateCoreInQuotation);
+router.delete('/:id/cores/:coreId', authenticate, isAdmin, deleteCoreFromQuotation);
 
 // Sheath management routes
-router.post('/:id/sheaths', addSheathToQuotation);
-router.put('/:id/sheaths/:sheathId', updateSheathInQuotation);
-router.delete('/:id/sheaths/:sheathId', deleteSheathFromQuotation);
+router.post('/:id/sheaths', authenticate, isAdmin, addSheathToQuotation);
+router.put('/:id/sheaths/:sheathId', authenticate, isAdmin, updateSheathInQuotation);
+router.delete('/:id/sheaths/:sheathId', authenticate, isAdmin, deleteSheathFromQuotation);
 
 export default router;

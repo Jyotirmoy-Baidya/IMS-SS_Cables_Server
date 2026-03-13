@@ -1,5 +1,7 @@
 import ProcessInWorkOrder from '../models/ProcessInWorkOrderModel.js';
 import WorkOrder from '../models/WorkOrderModel.js';
+import WIPInventory from '../models/WIPInventoryModel.js';
+import FinishedGoodsModel from '../models/FinishedGoodsModel.js';
 
 // Get all processes in work order
 export const getAllProcessesInWorkOrder = async (req, res) => {
@@ -119,6 +121,30 @@ export const updateProgress = async (req, res) => {
                 ...process.producedOutputDetails,
                 ...producedOutputDetails
             };
+
+            // Update WIP Inventory or Finished Good quantity if item exists
+            const wipId = process.producedOutputDetails.wipInventoryItemId;
+            const finishedGoodId = process.producedOutputDetails.finishedGoodId;
+            const producedQty = producedOutputDetails.producedQuantity;
+
+            if (wipId && producedQty !== undefined) {
+                // Update WIP Inventory quantity
+                await WIPInventory.findByIdAndUpdate(wipId, {
+                    $set: {
+                        'quantity.length': producedQty,
+                        'quantity.weight': producedOutputDetails.producedWeight || 0
+                    }
+                });
+            }
+
+            if (finishedGoodId && producedQty !== undefined) {
+                // Update Finished Good quantity
+                await FinishedGood.findByIdAndUpdate(finishedGoodId, {
+                    $set: {
+                        'quantity.produced': producedQty
+                    }
+                });
+            }
         }
 
         if (status) {
@@ -391,5 +417,139 @@ export const checkDependencies = async (req, res) => {
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// Create output product (WIP or Finished Good)
+export const createOutputProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { itemName, specifications, storageLocation, quantity } = req.body;
+
+        const process = await ProcessInWorkOrder.findById(id);
+        if (!process) {
+            return res.status(404).json({ success: false, message: 'Process not found' });
+        }
+
+        const outputType = process.output?.outputType || 'none';
+
+        if (outputType === 'none') {
+            return res.status(400).json({ success: false, message: 'This process does not produce output' });
+        }
+
+        let productId = null;
+
+        if (outputType === 'intermediate') {
+            // Create WIP Inventory
+            const wipItem = await WIPInventory.create({
+                itemName: itemName,
+                workOrderId: process.workOrderId,
+                workOrderNumber: process.workOrderNumber,
+                processId: process.processId,
+                processName: process.processName,
+                quantity: {
+                    weight: 0,
+                    length: 0,
+                    unit: process.output?.unit || 'm'
+                },
+                specifications: specifications || '',
+                storageLocation: storageLocation || '',
+                notes: `Created from process: ${process.processName}`,
+                isActive: true
+            });
+
+            productId = wipItem._id;
+
+            // Update process with WIP inventory ID
+            if (!process.producedOutputDetails) {
+                process.producedOutputDetails = {};
+            }
+            process.producedOutputDetails.wipInventoryItemId = productId;
+
+        } else if (outputType === 'final') {
+            // Create Finished Good
+            const finishedGood = await FinishedGoodsModel.create({
+                productName: itemName,
+                workOrderId: process.workOrderId,
+                workOrderNumber: process.workOrderNumber,
+                specifications: specifications || '',
+                quantity: {
+                    produced: 0,
+                    unit: process.output?.unit || 'm'
+                },
+                storageLocation: storageLocation || '',
+                status: 'in-stock',
+                notes: `Created from process: ${process.processName}`
+            });
+
+            productId = finishedGood._id;
+
+            // Update process with finished good ID
+            if (!process.producedOutputDetails) {
+                process.producedOutputDetails = {};
+            }
+            process.producedOutputDetails.finishedGoodId = productId;
+        }
+
+        await process.save();
+
+        res.json({
+            success: true,
+            message: `${outputType === 'intermediate' ? 'WIP Inventory' : 'Finished Good'} created successfully`,
+            data: {
+                process,
+                productId,
+                outputType
+            }
+        });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+};
+
+// Update process status only
+export const updateProcessStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, userId, userName } = req.body;
+
+        if (!status) {
+            return res.status(400).json({ success: false, message: 'Status is required' });
+        }
+
+        const process = await ProcessInWorkOrder.findById(id);
+        if (!process) {
+            return res.status(404).json({ success: false, message: 'Process not found' });
+        }
+
+        const oldStatus = process.status;
+        process.status = status;
+
+        // Set timestamps based on status
+        if (status === 'in-progress' && !process.startedAt) {
+            process.startedAt = new Date();
+        }
+
+        if (status === 'completed' && !process.completedAt) {
+            process.completedAt = new Date();
+        }
+
+        // Add status change log
+        if (oldStatus !== status) {
+            process.logs.push({
+                timestamp: new Date(),
+                action: 'status-changed',
+                userId: userId,
+                userName: userName || '',
+                details: { from: oldStatus, to: status },
+                description: `Status changed from ${oldStatus} to ${status}`
+            });
+        }
+
+        await process.save();
+
+        res.json({ success: true, message: 'Process status updated successfully', data: process });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
     }
 };

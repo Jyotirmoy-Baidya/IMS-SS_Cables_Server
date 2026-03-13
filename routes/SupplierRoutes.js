@@ -6,14 +6,15 @@ import {
   updateSupplier,
   deleteSupplier
 } from '../contollers/SupplierControllers.js';
+import { authenticate, isAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Routes
-router.post('/add-supplier', addSupplier);
-router.get('/get-all-suppliers', getAllSuppliers);
-router.get('/get-one-supplier/:id', getOneSupplier);
-router.put('/update-supplier/:id', updateSupplier);
-router.delete('/delete-supplier/:id', deleteSupplier);
+// Routes - All require authentication and admin access
+router.post('/add-supplier', authenticate, isAdmin, addSupplier);
+router.get('/get-all-suppliers', authenticate, isAdmin, getAllSuppliers);
+router.get('/get-one-supplier/:id', authenticate, isAdmin, getOneSupplier);
+router.put('/update-supplier/:id', authenticate, isAdmin, updateSupplier);
+router.delete('/delete-supplier/:id', authenticate, isAdmin, deleteSupplier);
 
 export default router;

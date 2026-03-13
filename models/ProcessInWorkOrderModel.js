@@ -169,7 +169,17 @@ const processInWorkOrderSchema = new mongoose.Schema(
             storageLocation: { type: String, default: '' },
             qualityGrade: { type: String, default: '' },
             defectRate: { type: Number, default: 0 },
-            notes: { type: String, default: '' }
+            notes: { type: String, default: '' },
+            wipInventoryItemId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'WIPInventory',
+                default: null
+            },
+            finishedGoodId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'FinishedGood',
+                default: null
+            }
         },
 
         // Activity logs

@@ -7,17 +7,18 @@ import {
     deleteWIPInventory,
     checkWIPAvailability
 } from '../contollers/WIPInventoryControllers.js';
+import { authenticate, isAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 // Basic CRUD
-router.get('/', getAllWIPInventory);
-router.get('/:id', getWIPInventoryById);
-router.put('/:id', updateWIPInventory);
-router.delete('/:id', deleteWIPInventory);
+router.get('/', authenticate, isAdmin, getAllWIPInventory);
+router.get('/:id', authenticate, isAdmin, getWIPInventoryById);
+router.put('/:id', authenticate, isAdmin, updateWIPInventory);
+router.delete('/:id', authenticate, isAdmin, deleteWIPInventory);
 
 // Special endpoints
-router.get('/work-order/:workOrderId/available', getAvailableWIPForWorkOrder);
-router.post('/check-availability', checkWIPAvailability);
+router.get('/work-order/:workOrderId/available', authenticate, isAdmin, getAvailableWIPForWorkOrder);
+router.post('/check-availability', authenticate, isAdmin, checkWIPAvailability);
 
 export default router;

@@ -6,14 +6,15 @@ import {
     updateCustomer,
     deleteCustomer,
 } from "../contollers/CustomerControllers.js";
+import { authenticate, isAdmin } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-/* CRUD ROUTES */
-router.post("/add-customer", createCustomer);           // Create
-router.get("/get-all-customer", getAllCustomers);            // Read all
-router.get("/get-one-customer/:id", getCustomerById);         // Read one
-router.put("/update-customers/:id", updateCustomer);          // Update
-router.delete("/delete-customers/:id", deleteCustomer);       // Delete
+/* CRUD ROUTES - All require authentication and admin access */
+router.post("/add-customer", authenticate, isAdmin, createCustomer);
+router.get("/get-all-customer", authenticate, isAdmin, getAllCustomers);
+router.get("/get-one-customer/:id", authenticate, isAdmin, getCustomerById);
+router.put("/update-customers/:id", authenticate, isAdmin, updateCustomer);
+router.delete("/delete-customers/:id", authenticate, isAdmin, deleteCustomer);
 
 export default router;

@@ -8,15 +8,16 @@ import {
   cancelPurchaseOrder,
   getSuggestedSuppliers
 } from '../contollers/PurchaseOrderControllers.js';
+import { authenticate, isAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-router.post('/create', createPurchaseOrder);
-router.get('/get-all', getAllPurchaseOrders);
-router.get('/get-one/:id', getOnePurchaseOrder);
-router.put('/update/:id', updatePurchaseOrder);
-router.post('/receive/:id', receivePurchaseOrder);
-router.post('/cancel/:id', cancelPurchaseOrder);
-router.get('/suggested-suppliers/:materialId', getSuggestedSuppliers);
+router.post('/create', authenticate, isAdmin, createPurchaseOrder);
+router.get('/get-all', authenticate, isAdmin, getAllPurchaseOrders);
+router.get('/get-one/:id', authenticate, isAdmin, getOnePurchaseOrder);
+router.put('/update/:id', authenticate, isAdmin, updatePurchaseOrder);
+router.post('/receive/:id', authenticate, isAdmin, receivePurchaseOrder);
+router.post('/cancel/:id', authenticate, isAdmin, cancelPurchaseOrder);
+router.get('/suggested-suppliers/:materialId', authenticate, isAdmin, getSuggestedSuppliers);
 
 export default router;

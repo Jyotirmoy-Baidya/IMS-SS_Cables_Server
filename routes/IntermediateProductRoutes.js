@@ -6,13 +6,14 @@ import {
     updateIntermediateProduct,
     deleteIntermediateProduct
 } from '../contollers/IntermediateProductControllers.js';
+import { authenticate, isAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-router.post('/add-intermediate-product', addIntermediateProduct);
-router.get('/get-all-intermediate-products', getAllIntermediateProducts);
-router.get('/get-one-intermediate-product/:id', getOneIntermediateProduct);
-router.put('/update-intermediate-product/:id', updateIntermediateProduct);
-router.delete('/delete-intermediate-product/:id', deleteIntermediateProduct);
+router.post('/add-intermediate-product', authenticate, isAdmin, addIntermediateProduct);
+router.get('/get-all-intermediate-products', authenticate, isAdmin, getAllIntermediateProducts);
+router.get('/get-one-intermediate-product/:id', authenticate, isAdmin, getOneIntermediateProduct);
+router.put('/update-intermediate-product/:id', authenticate, isAdmin, updateIntermediateProduct);
+router.delete('/delete-intermediate-product/:id', authenticate, isAdmin, deleteIntermediateProduct);
 
 export default router;

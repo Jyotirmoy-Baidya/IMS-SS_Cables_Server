@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import authRoutes from "./routes/AuthRoutes.js"
 import customerRoutes from "./routes/CustomerRoutes.js"
 import supplierRoutes from "./routes/SupplierRoutes.js"
 import rawMaterialTypeRoutes from "./routes/RawMaterialTypeRoutes.js"
@@ -12,7 +13,6 @@ import userRoutes from "./routes/UserRoutes.js"
 import workOrderRoutes from "./routes/WorkOrderRoutes.js"
 import locationRoutes from "./routes/LocationRoutes.js"
 import materialAllocationRoutes from "./routes/MaterialAllocationRoutes.js"
-import processTrackingRoutes from "./routes/ProcessTrackingRoutes.js"
 import processInWorkOrderRoutes from "./routes/ProcessInWorkOrderRoutes.js"
 import wipInventoryRoutes from "./routes/WIPInventoryRoutes.js"
 import finishedGoodsRoutes from "./routes/FinishedGoodsRoutes.js"
@@ -37,6 +37,7 @@ app.get('/', (req, res) => {
     res.send('Backend is running 🚀')
 })
 
+app.use("/api/auth", authRoutes);
 app.use("/api/customer", customerRoutes);
 app.use("/api/supplier", supplierRoutes);
 app.use("/api/material-type", rawMaterialTypeRoutes);
@@ -49,7 +50,6 @@ app.use("/api/user", userRoutes);
 app.use("/api/work-order", workOrderRoutes);
 app.use("/api/location", locationRoutes);
 app.use("/api/material-allocation", materialAllocationRoutes);
-app.use("/api/process-tracking", processTrackingRoutes);
 app.use("/api/process-in-work-order", processInWorkOrderRoutes);
 app.use("/api/wip-inventory", wipInventoryRoutes);
 app.use("/api/finished-goods", finishedGoodsRoutes);

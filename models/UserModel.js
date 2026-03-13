@@ -1,13 +1,5 @@
 import mongoose from 'mongoose';
-
-const phoneNumberSchema = new mongoose.Schema(
-    {
-        number: { type: String, required: true },
-        label: { type: String, default: '' }, // e.g., "Personal", "Work", "Emergency"
-        isPrimary: { type: Boolean, default: false },
-    },
-    { _id: false }
-);
+import bcrypt from 'bcryptjs';
 
 const addressSchema = new mongoose.Schema(
     {
@@ -25,26 +17,33 @@ const userSchema = new mongoose.Schema(
     {
         name: {
             type: String,
-            required: true,
             trim: true,
+            default: ''
+        },
+
+        email: {
+            type: String,
+            trim: true,
+            lowercase: true,
+            default: ''
+        },
+
+        phoneNumber: {
+            type: String,
+            required: true,
+            trim: true
+        },
+
+        password: {
+            type: String,
+            required: true,
+            minlength: 6
         },
 
         role: {
             type: String,
             enum: ['admin', 'salesperson', 'employee'],
             required: true,
-        },
-
-        phoneNumbers: {
-            type: [phoneNumberSchema],
-            default: [],
-            validate: {
-                validator: function(arr) {
-                    // At least one phone number required
-                    return arr && arr.length > 0;
-                },
-                message: 'At least one phone number is required',
-            },
         },
 
         address: {
@@ -73,14 +72,19 @@ const userSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-// Virtual to get primary phone number
-userSchema.virtual('primaryPhone').get(function() {
-    const primary = this.phoneNumbers?.find(p => p.isPrimary);
-    return primary?.number || this.phoneNumbers?.[0]?.number || '';
+// Hash password before saving (Mongoose 9 - no next parameter)
+userSchema.pre('save', async function() {
+    if (!this.isModified('password')) {
+        return;
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
 });
 
-// Ensure virtuals are included in JSON/Object conversion
-userSchema.set('toJSON', { virtuals: true });
-userSchema.set('toObject', { virtuals: true });
+// Method to compare password
+userSchema.methods.comparePassword = async function(candidatePassword) {
+    return await bcrypt.compare(candidatePassword, this.password);
+};
 
 export default mongoose.model('User', userSchema);
