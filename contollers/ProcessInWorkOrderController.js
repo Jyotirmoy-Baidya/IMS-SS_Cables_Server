@@ -97,6 +97,35 @@ export const addInput = async (req, res) => {
 
         await process.save();
 
+        // Update work order allocated materials if this is a raw material consumption
+        if (inputData.sourceType === 'raw-material' && inputData.allocatedMaterialId) {
+            const workOrder = await WorkOrder.findById(process.workOrderId);
+            if (workOrder) {
+                const allocatedMaterial = workOrder.allocatedMaterials.id(inputData.allocatedMaterialId);
+                if (allocatedMaterial) {
+                    // Update consumed quantity
+                    if (!allocatedMaterial.consumedQuantity) {
+                        allocatedMaterial.consumedQuantity = { weight: 0, length: 0 };
+                    }
+                    allocatedMaterial.consumedQuantity.weight += inputData.quantityUsed?.weight || 0;
+                    allocatedMaterial.consumedQuantity.length += inputData.quantityUsed?.length || 0;
+
+                    // Reduce allocated weight
+                    allocatedMaterial.allocatedWeight -= inputData.quantityUsed?.weight || 0;
+                    if (allocatedMaterial.allocatedWeight < 0) {
+                        allocatedMaterial.allocatedWeight = 0;
+                    }
+
+                    // Mark as consumed if all allocated material is used
+                    if (allocatedMaterial.allocatedWeight <= 0.01) {
+                        allocatedMaterial.isConsumed = true;
+                    }
+
+                    await workOrder.save();
+                }
+            }
+        }
+
         res.json({ success: true, message: 'Input added successfully', data: process });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });

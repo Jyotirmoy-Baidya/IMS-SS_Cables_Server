@@ -66,6 +66,18 @@ const workOrderSchema = new mongoose.Schema(
                 default: 0,
                 min: 0
             },
+            consumedQuantity: {
+                weight: {
+                    type: Number,
+                    default: 0,
+                    min: 0
+                },
+                length: {
+                    type: Number,
+                    default: 0,
+                    min: 0
+                }
+            },
             pricePerKg: {
                 type: Number,
                 default: 0
