@@ -474,7 +474,10 @@ export const updateSheathInQuotation = async (req, res) => {
 
         // Update sheath with frontend data
         const sheathData = transformSheathData(frontendSheath, sheath.sheathNumber, quotation._id);
+
+        console.log(sheathData.materialRequired);
         Object.assign(sheath, sheathData);
+
         await sheath.save();
 
         // Populate processes before returning
