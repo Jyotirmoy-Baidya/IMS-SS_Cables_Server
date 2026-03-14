@@ -63,7 +63,7 @@ const activityLogSchema = new mongoose.Schema({
 
     action: {
         type: String,
-        enum: ['input-consumed', 'output-calculated', 'status-changed', 'progress-updated', 'note-added'],
+        enum: ['input-consumed', 'output-calculated', 'status-changed', 'progress-updated', 'note-added', 'output-created'],
         required: true
     },
 

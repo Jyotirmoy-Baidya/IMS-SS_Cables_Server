@@ -150,6 +150,10 @@ const workOrderSchema = new mongoose.Schema(
                     type: mongoose.Schema.Types.ObjectId,
                     ref: 'RawMaterialLot'
                 },
+                plannedWeightToUse: {
+                    type: Number,
+                    default: null
+                },
                 lotNumber: String,
                 allocatedWeight: { type: Number, default: 0 },
                 allocatedLength: { type: Number, default: 0 },

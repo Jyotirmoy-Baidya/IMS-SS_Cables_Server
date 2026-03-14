@@ -110,6 +110,7 @@ export const createWorkOrder = async (req, res) => {
                         materialLotId: lot._id,
                         lotNumber: lot.lotNumber,
                         allocatedWeight: toAllocate,
+                        plannedWeightToUse: toAllocate, // Set planned weight equal to allocated weight
                         allocatedLength: 0,
                         pricePerKg: reqPricePerKg,
                         totalCost: costForThis,
@@ -456,6 +457,7 @@ export const approveExtraMaterialRequest = async (req, res) => {
                 materialLotId: lot._id,
                 lotNumber: lot.lotNumber,
                 allocatedWeight: toAllocate,
+                plannedWeightToUse: toAllocate, // Set planned weight equal to allocated weight
                 allocatedLength: 0,
                 pricePerKg: pricePerKg,
                 totalCost: costForThis,
